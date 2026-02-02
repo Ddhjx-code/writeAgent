@@ -72,14 +72,44 @@ class ArchivistAgent(BaseAgent):
                     if hasattr(existing_char, key):
                         setattr(existing_char, key, value)
 
+                # Process metadata to ensure it only contains simple types
+                simple_metadata = {}
+                if existing_char.metadata:
+                    for key, value in existing_char.metadata.items():
+                        # Ensure key is a string
+                        safe_key = str(key) if key is not None else "unknown_key"
+                        # Ensure value is a simple type (str, int, float, None)
+                        if value is None or isinstance(value, (str, int, float)):
+                            simple_metadata[safe_key] = value
+                        elif isinstance(value, (list, tuple)):
+                            # Convert list items to strings
+                            simple_metadata[safe_key] = [str(item) if item is not None else "null" for item in value]
+                        elif isinstance(value, dict):
+                            # For nested dictionaries, convert to string representation
+                            simple_metadata[safe_key] = str(value)
+                        else:
+                            # For any other type, convert to string
+                            simple_metadata[safe_key] = str(value)
+
+                # Process relationships to ensure they are simple strings
+                simple_relationships = []
+                if existing_char.relationships:
+                    # Convert relationships to string format (keys only)
+                    if isinstance(existing_char.relationships, dict):
+                        simple_relationships = [str(k) for k in existing_char.relationships.keys()]
+                    elif isinstance(existing_char.relationships, list):
+                        simple_relationships = [str(item) for item in existing_char.relationships]
+                    else:
+                        simple_relationships = [str(existing_char.relationships)]
+
                 # Update knowledge base
                 entity = KnowledgeEntity(
                     id=char_id,
                     name=existing_char.name,
                     type="character",
                     description=existing_char.description,
-                    metadata=existing_char.metadata,
-                    relationships=list(existing_char.relationships.keys())
+                    metadata=simple_metadata,
+                    relationships=simple_relationships
                 )
                 self.knowledge_base.update_entity(entity)
 
@@ -99,14 +129,44 @@ class ArchivistAgent(BaseAgent):
 
                 state.add_character(character)
 
+                # Process metadata to ensure it only contains simple types
+                simple_metadata = {}
+                if character.metadata:
+                    for key, value in character.metadata.items():
+                        # Ensure key is a string
+                        safe_key = str(key) if key is not None else "unknown_key"
+                        # Ensure value is a simple type (str, int, float, None)
+                        if value is None or isinstance(value, (str, int, float)):
+                            simple_metadata[safe_key] = value
+                        elif isinstance(value, (list, tuple)):
+                            # Convert list items to strings
+                            simple_metadata[safe_key] = [str(item) if item is not None else "null" for item in value]
+                        elif isinstance(value, dict):
+                            # For nested dictionaries, convert to string representation
+                            simple_metadata[safe_key] = str(value)
+                        else:
+                            # For any other type, convert to string
+                            simple_metadata[safe_key] = str(value)
+
+                # Process relationships to ensure they are simple strings
+                simple_relationships = []
+                if character.relationships:
+                    # Convert relationships to string format (keys only)
+                    if isinstance(character.relationships, dict):
+                        simple_relationships = [str(k) for k in character.relationships.keys()]
+                    elif isinstance(character.relationships, list):
+                        simple_relationships = [str(item) for item in character.relationships]
+                    else:
+                        simple_relationships = [str(character.relationships)]
+
                 # Add to knowledge base
                 entity = KnowledgeEntity(
                     id=char_id,
                     name=character.name,
                     type="character",
                     description=character.description,
-                    metadata=character.metadata,
-                    relationships=list(character.relationships.keys())
+                    metadata=simple_metadata,
+                    relationships=simple_relationships
                 )
                 self.knowledge_base.add_entity(entity)
 
@@ -383,14 +443,44 @@ class ArchivistAgent(BaseAgent):
                     entity = state.get_character(target_id)
                     if entity:
                         entity.metadata.update(metadata)
+                        # Process metadata to ensure it only contains simple types
+                        simple_metadata = {}
+                        if entity.metadata:
+                            for key, value in entity.metadata.items():
+                                # Ensure key is a string
+                                safe_key = str(key) if key is not None else "unknown_key"
+                                # Ensure value is a simple type (str, int, float, None)
+                                if value is None or isinstance(value, (str, int, float)):
+                                    simple_metadata[safe_key] = value
+                                elif isinstance(value, (list, tuple)):
+                                    # Convert list items to strings
+                                    simple_metadata[safe_key] = [str(item) if item is not None else "null" for item in value]
+                                elif isinstance(value, dict):
+                                    # For nested dictionaries, convert to string representation
+                                    simple_metadata[safe_key] = str(value)
+                                else:
+                                    # For any other type, convert to string
+                                    simple_metadata[safe_key] = str(value)
+
+                        # Process relationships to ensure they are simple strings
+                        simple_relationships = []
+                        if entity.relationships:
+                            # Convert relationships to string format (keys only)
+                            if isinstance(entity.relationships, dict):
+                                simple_relationships = [str(k) for k in entity.relationships.keys()]
+                            elif isinstance(entity.relationships, list):
+                                simple_relationships = [str(item) for item in entity.relationships]
+                            else:
+                                simple_relationships = [str(entity.relationships)]
+
                         # Update in knowledge base as well
                         entity_obj = KnowledgeEntity(
                             id=target_id,
                             name=entity.name,
                             type="character",
                             description=entity.description,
-                            metadata=entity.metadata,
-                            relationships=list(entity.relationships.keys())
+                            metadata=simple_metadata,
+                            relationships=simple_relationships
                         )
                         # Note: In a full implementation we would use update_entity,
                         # but we just store the updates and return

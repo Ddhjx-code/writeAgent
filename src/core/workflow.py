@@ -41,6 +41,8 @@ class NodeType(str, Enum):
 
 class WorkflowState(BaseModel):
     """State model for the LangGraph workflow"""
+    model_config = {"arbitrary_types_allowed": True}
+
     story_state: StoryState
     current_chapter: str = ""
     current_agent: str = ""
@@ -62,77 +64,219 @@ class NovelWritingWorkflow:
         self.agents = self.agent_factory.create_all_agents()
         self.knowledge_base = knowledge_base
 
-        # Create the workflow graph
-        self.workflow = StateGraph(WorkflowState)
+        # Check if LangGraph is available
+        if StateGraph is None:
+            print("LangGraph not available, workflow not constructed")
+            self.workflow = None
+            self.app = None
+        else:
+            # Create the workflow graph
+            self.workflow = StateGraph(WorkflowState)
 
-        # Add nodes
-        self._add_nodes()
+            # Add nodes with the updated architecture (global planning then per-chapter processing)
+            self._add_improved_nodes()
 
-        # Add edges
-        self._add_edges()
+            # Add edges with the updated flow
+            self._add_improved_edges()
 
-        # Compile the graph
-        self.app = self.workflow.compile()
+            # Compile the graph
+            self.app = self.workflow.compile()
 
-    def _add_nodes(self):
-        """Add all nodes to the workflow graph"""
+    def _add_improved_nodes(self):
+        """Add all nodes to the workflow graph with improved architecture"""
         self.workflow.add_node(NodeType.START, self.start_node)
-        self.workflow.add_node(NodeType.PLANNING, self.planning_node)
-        self.workflow.add_node(NodeType.WRITING, self.writing_node)
-        self.workflow.add_node(NodeType.CONSISTENCY_CHECK, self.consistency_check_node)
+        # Phase 1: Global planning (done once)
+        self.workflow.add_node(NodeType.GLOBAL_PLANNING, self.global_planning_node)
+        self.workflow.add_node(NodeType.GLOBAL_PACING_SETUP, self.global_pacing_setup_node)
+        # Phase 2: Per-chapter processing (done for each chapter)
+        self.workflow.add_node(NodeType.PROCESS_CHAPTER, self.process_single_chapter)
         self.workflow.add_node(NodeType.DIALOGUE_ENHANCE, self.dialogue_enhance_node)
         self.workflow.add_node(NodeType.WORLD_BUILDING, self.world_building_node)
-        self.workflow.add_node(NodeType.PACING_ADJUST, self.pacing_adjust_node)
+        self.workflow.add_node(NodeType.CONSISTENCY_CHECK, self.consistency_check_node)
         self.workflow.add_node(NodeType.EDITING, self.editing_node)
-        self.workflow.add_node(NodeType.REVIEW, self.review_node)
-        self.workflow.add_node(NodeType.HUMAN_REVIEW, self.human_review_node)
         self.workflow.add_node(NodeType.ARCHIVE, self.archive_node)
+        # Phase 3: Final integration (done once)
+        self.workflow.add_node(NodeType.INTEGRATE_FULL_STORY, self.integrate_full_story_node)
         self.workflow.add_node(NodeType.END, self.end_node)
 
-    def _add_edges(self):
-        """Define the execution flow between nodes"""
-        # Start -> Planning
-        self.workflow.add_edge(NodeType.START, NodeType.PLANNING)
+    def _add_improved_edges(self):
+        """Define the execution flow between nodes with improved architecture"""
+        # Phase 1: Initial global setup
+        self.workflow.add_edge(NodeType.START, NodeType.GLOBAL_PLANNING)
+        self.workflow.add_edge(NodeType.GLOBAL_PLANNING, NodeType.GLOBAL_PACING_SETUP)
 
-        # Planning -> Writing
-        self.workflow.add_edge(NodeType.PLANNING, NodeType.WRITING)
+        # Phase 2: Per-chapter processing with loop
+        self.workflow.add_edge(NodeType.GLOBAL_PACING_SETUP, NodeType.PROCESS_CHAPTER)
 
-        # Multi-step review process
-        self.workflow.add_edge(NodeType.WRITING, NodeType.CONSISTENCY_CHECK)
-        self.workflow.add_edge(NodeType.CONSISTENCY_CHECK, NodeType.DIALOGUE_ENHANCE)
+        # Chapter processing flow: Writer -> Dialogue -> World -> Consistency -> Edit -> Archive
+        self.workflow.add_edge(NodeType.PROCESS_CHAPTER, NodeType.DIALOGUE_ENHANCE)
         self.workflow.add_edge(NodeType.DIALOGUE_ENHANCE, NodeType.WORLD_BUILDING)
-        self.workflow.add_edge(NodeType.WORLD_BUILDING, NodeType.PACING_ADJUST)
-        self.workflow.add_edge(NodeType.PACING_ADJUST, NodeType.EDITING)
+        self.workflow.add_edge(NodeType.WORLD_BUILDING, NodeType.CONSISTENCY_CHECK)
+        self.workflow.add_edge(NodeType.CONSISTENCY_CHECK, NodeType.EDITING)
+        self.workflow.add_edge(NodeType.EDITING, NodeType.ARCHIVE)
 
-        # Decide between human review or auto review
-        self.workflow.add_conditional_edges(
-            NodeType.EDITING,
-            self._should_review,
-            {
-                "human_review": NodeType.HUMAN_REVIEW,
-                "auto_review": NodeType.REVIEW
-            }
-        )
-
-        # Human review path
-        self.workflow.add_edge(NodeType.HUMAN_REVIEW, NodeType.REVIEW)
-
-        # Auto review path
-        self.workflow.add_edge(NodeType.REVIEW, NodeType.ARCHIVE)
-
-        # Archive decides final path
+        # Loop back to process next chapter if more chapters are needed
         self.workflow.add_conditional_edges(
             NodeType.ARCHIVE,
-            self._continue_writing,
+            self._should_continue_writing,  # Check if we need to write more chapters
             {
-                "continue": NodeType.PLANNING,
-                "end": NodeType.END
+                "continue": NodeType.PROCESS_CHAPTER,
+                "complete": NodeType.INTEGRATE_FULL_STORY
             }
         )
 
-        # Start the graph execution
+        # Phase 3: Final integration
+        self.workflow.add_edge(NodeType.INTEGRATE_FULL_STORY, NodeType.END)
+
+        # Start and end configuration
         self.workflow.set_entry_point(NodeType.START)
         self.workflow.set_finish_point(NodeType.END)
+
+    def global_planning_node(self, state: WorkflowState) -> Dict[str, Any]:
+        """Global planning phase - creates story arc, outlines all chapters, characters and locations"""
+        print("Running Planner Agent for global story planning")
+
+        # Get the planner agent
+        planner_agent = state.agents.get("Planner")
+        if not planner_agent:
+            planner_agent = self.agents.get("Planner")
+
+        if planner_agent:
+            # Create story arc for the entire novel
+            context = {
+                "action": "design_story_arc",
+                "target_chapters": state.story_state.target_chapter_count,
+                "story_type": "three_act",
+                "theme": "general"
+            }
+
+            result = planner_agent.process(state.story_state, context)
+            print(f"Global planning result: {result}")
+
+            # Also create general outlines for all chapters now
+            if state.story_state.target_chapter_count > 0:
+                # Create basic outlines for each chapter (will be refined individually later)
+                for chap_num in range(1, state.story_state.target_chapter_count + 1):
+                    context = {
+                        "action": "outline_chapter",
+                        "chapter_number": chap_num,
+                        "title": f"Chapter {chap_num}",
+                        "plot_advancement": f"Advance story plot for chapter {chap_num}",
+                        "characters": list(state.story_state.characters.keys()),
+                        "locations": list(state.story_state.locations.keys())
+                    }
+                    result = planner_agent.process(state.story_state, context)
+
+        return {
+            "current_agent": "Planner",
+            "task_completed": "global_planning_complete",
+            "story_state": state.story_state
+        }
+
+    def global_pacing_setup_node(self, state: WorkflowState) -> Dict[str, Any]:
+        """Global pacing setup phase - defines the pacing and tension across all chapters"""
+        print("Running Pacing Advisor for global pacing setup")
+
+        pacing_agent = state.agents.get("PacingAdvisor") if state.agents.get("PacingAdvisor") else self.agents.get("PacingAdvisor")
+
+        if pacing_agent:
+            # Plan pacing for the entire story first
+            context = {
+                "action": "evaluate_tension_arc",
+                "content": state.story_state.summary,
+                "total_chapters": state.story_state.target_chapter_count
+            }
+
+            result = pacing_agent.process(state.story_state, context)
+            print(f"Global pacing setup result: {result}")
+
+            # Apply pacing to metadata
+            state.story_state.metadata["global_pacing_plan"] = result.get("tension_arc", [])
+
+        return {
+            "current_agent": "PacingAdvisor",
+            "task_completed": "global_pacing_setup_complete",
+            "story_state": state.story_state
+        }
+
+    def process_single_chapter(self, state: WorkflowState) -> Dict[str, Any]:
+        """Process a single chapter according to the global plan"""
+        print(f"Running Writer Agent for chapter {state.story_state.get_next_chapter_number()}")
+
+        # Get the writer agent
+        writer_agent = state.agents.get("Writer")
+        if not writer_agent:
+            writer_agent = self.agents.get("Writer")
+
+        if writer_agent:
+            # Determine chapter to write based on global planning
+            next_chapter_num = state.story_state.get_next_chapter_number()
+
+            # Get the chapter outline that was prepared in global planning
+            # For now, we use a placeholder - in a full implementation, outlines would be stored by the planner
+            outline = f"Chapter {next_chapter_num} outline based on global story arc"
+
+            context = {
+                "action": "write_chapter",
+                "chapter_number": next_chapter_num,
+                "outline": outline,
+                "target_words": 2000,  # Could adjust based on pacing requirements
+                "characters": list(state.story_state.characters.keys()),
+                "locations": list(state.story_state.locations.keys())
+            }
+
+            result = writer_agent.process(state.story_state, context)
+            print(f"Chapter writing result: {result}")
+
+            # Extract the generated chapter ID to set as current
+            if result.get("status") == "success":
+                chapter_id = result.get("chapter_id")
+                if chapter_id:
+                    return {
+                        "current_chapter": chapter_id,
+                        "current_agent": "Writer",
+                        "task_completed": "draft_written",
+                        "story_state": state.story_state
+                    }
+
+        return {
+            "current_agent": "Writer",
+            "task_completed": "draft_written",
+            "story_state": state.story_state
+        }
+
+    def integrate_full_story_node(self, state: WorkflowState) -> Dict[str, Any]:
+        """Final integration step to review entire story for consistency"""
+        print("Performing final full story integration and consistency check")
+
+        # Run consistency checker on the entire story
+        consistency_agent = state.agents.get("ConsistencyChecker") if state.agents.get("ConsistencyChecker") else self.agents.get("ConsistencyChecker")
+
+        if consistency_agent:
+            context = {
+                "action": "check_all_consistencies",
+                "chapter_id": None  # Check all chapters
+            }
+
+            result = consistency_agent.process(state.story_state, context)
+            print(f"Full story integration check result: {result}")
+
+            # Perform a full story edit pass
+            editor_agent = state.agents.get("Editor") if state.agents.get("Editor") else self.agents.get("Editor")
+            if editor_agent:
+                context = {
+                    "action": "edit_content",
+                    "focus": ["readability", "continuity", "cohesion"]
+                }
+                full_content = "\n".join([ch.content for ch in state.story_state.chapters.values()])
+                editor_result = editor_agent.process(state.story_state, context)
+                print(f"Full story editing result: {editor_result}")
+
+        return {
+            "current_agent": "Final Integration",
+            "task_completed": "full_story_integrated",
+            "story_state": state.story_state
+        }
 
     def start_node(self, state: WorkflowState) -> Dict[str, Any]:
         """Start node - initializes the workflow"""
@@ -413,16 +557,65 @@ class NovelWritingWorkflow:
 
     async def run(self, initial_state: StoryState) -> WorkflowState:
         """Run the complete workflow with the initial state"""
-        # Create initial workflow state
-        initial_workflow_state = WorkflowState(
-            story_state=initial_state,
-            agents=self.agents,
-            knowledge_base=self.knowledge_base
-        )
+        if self.app is None:
+            # Fallback behavior when LangGraph is not available
+            print("LangGraph not available, running basic implementation")
+            # Run through the agent steps manually
+            current_state = initial_state
 
-        # Run the workflow
-        final_state = await self.app.ainvoke(initial_workflow_state)
-        return final_state
+            # Simple execution flow instead of workflow execution
+            # Global planning step
+            planner_agent = self.agents.get("Planner")
+            if planner_agent:
+                context = {
+                    "action": "design_story_arc",
+                    "target_chapters": current_state.target_chapter_count,
+                    "story_type": "three_act",
+                    "theme": "general"
+                }
+                planner_agent.process(current_state, context)
+
+            # Chapter writing step
+            if current_state.target_chapter_count > 0:
+                for chap_num in range(1, current_state.target_chapter_count + 1):
+                    writer_agent = self.agents.get("Writer")
+                    if writer_agent:
+                        context = {
+                            "action": "write_chapter",
+                            "chapter_number": chap_num,
+                            "outline": f"Chapter {chap_num} outline based on global story arc",
+                            "target_words": 2000,
+                            "characters": list(current_state.characters.keys()),
+                            "locations": list(current_state.locations.keys())
+                        }
+                        writer_agent.process(current_state, context)
+
+                    # Consistency check (simple)
+                    consistency_agent = self.agents.get("ConsistencyChecker")
+                    if consistency_agent:
+                        context = {
+                            "action": "check_all_consistencies",
+                            "chapter_id": None
+                        }
+                        consistency_agent.process(current_state, context)
+
+            # Return a minimal workflow state without workflow execution
+            return WorkflowState(
+                story_state=current_state,
+                agents=self.agents,
+                knowledge_base=self.knowledge_base
+            )
+        else:
+            # Create initial workflow state
+            initial_workflow_state = WorkflowState(
+                story_state=initial_state,
+                agents=self.agents,
+                knowledge_base=self.knowledge_base
+            )
+
+            # Run the workflow
+            final_state = await self.app.ainvoke(initial_workflow_state)
+            return final_state
 
     def _should_review(self, state: WorkflowState) -> str:
         """Conditional function to decide human vs auto review"""
@@ -445,17 +638,54 @@ class NovelWritingWorkflow:
 
     def stream_execution(self, initial_state: StoryState):
         """Stream execution for long-running workflows"""
-        initial_workflow_state = WorkflowState(
-            story_state=initial_state,
-            agents=self.agents,
-            knowledge_base=self.knowledge_base
-        )
+        if self.app is None:
+            # Fallback behavior when LangGraph is not available
+            print("LangGraph not available, running basic streaming implementation")
+            # Simulate streaming by running basic processing steps
+            current_state = initial_state
 
-        # Execute with streaming
-        for output in self.app.stream(initial_workflow_state):
-            for key, value in output.items():
-                print(f"Step: {key} -> {value}")
-                yield key, value
+            yield "start", {"status": "workflow_started", "story_state": current_state}
+
+            # Global planning step
+            planner_agent = self.agents.get("Planner")
+            if planner_agent:
+                context = {
+                    "action": "design_story_arc",
+                    "target_chapters": current_state.target_chapter_count,
+                    "story_type": "three_act",
+                    "theme": "general"
+                }
+                result = planner_agent.process(current_state, context)
+                yield "global_planning", {"result": result, "story_state": current_state}
+
+            # Chapter writing step
+            if current_state.target_chapter_count > 0:
+                for chap_num in range(1, current_state.target_chapter_count + 1):
+                    writer_agent = self.agents.get("Writer")
+                    if writer_agent:
+                        context = {
+                            "action": "write_chapter",
+                            "chapter_number": chap_num,
+                            "outline": f"Chapter {chap_num} outline based on global story arc",
+                            "target_words": 2000,
+                            "characters": list(current_state.characters.keys()),
+                            "locations": list(current_state.locations.keys())
+                        }
+                        result = writer_agent.process(current_state, context)
+                        yield f"chapter_{chap_num}", {"result": result, "chapter_number": chap_num}
+
+            yield "end", {"status": "workflow_completed", "story_state": current_state}
+        else:
+            # Execute with streaming
+            initial_workflow_state = WorkflowState(
+                story_state=initial_state,
+                agents=self.agents,
+                knowledge_base=self.knowledge_base
+            )
+
+            for output in self.app.stream(initial_workflow_state):
+                for key, value in output.items():
+                    yield key, value
 
 
 # Example instantiation and usage function

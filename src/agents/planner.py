@@ -590,13 +590,43 @@ class PlannerAgent(BaseAgent):
     def _create_char_entity(self, char: Character):
         """Helper to create a knowledge base entity from a character"""
         from src.core.knowledge_base import KnowledgeEntity
+        # Process relationships to ensure they are simple strings
+        simple_relationships = []
+        if char.relationships:
+            # Convert relationships to string format (keys only)
+            if isinstance(char.relationships, dict):
+                simple_relationships = [str(k) for k in char.relationships.keys()]
+            elif isinstance(char.relationships, list):
+                simple_relationships = [str(item) for item in char.relationships]
+            else:
+                simple_relationships = [str(char.relationships)]
+
+        # Process metadata to ensure it only contains simple types
+        simple_metadata = {}
+        if char.metadata:
+            for key, value in char.metadata.items():
+                # Ensure key is a string
+                safe_key = str(key) if key is not None else "unknown_key"
+                # Ensure value is a simple type (str, int, float, None)
+                if value is None or isinstance(value, (str, int, float)):
+                    simple_metadata[safe_key] = value
+                elif isinstance(value, (list, tuple)):
+                    # Convert list items to strings
+                    simple_metadata[safe_key] = [str(item) if item is not None else "null" for item in value]
+                elif isinstance(value, dict):
+                    # For nested dictionaries, convert to string representation
+                    simple_metadata[safe_key] = str(value)
+                else:
+                    # For any other type, convert to string
+                    simple_metadata[safe_key] = str(value)
+
         return KnowledgeEntity(
             id=char.id,
             name=char.name,
             type="character",
             description=char.description,
-            metadata=char.metadata,
-            relationships=list(char.relationships.keys())
+            metadata=simple_metadata,
+            relationships=simple_relationships
         )
 
     def _define_character_arc_stages(self, story_type: str, total_chapters: int) -> Dict[str, List]:

@@ -16,11 +16,13 @@ class AgentFactory:
     def __init__(self, knowledge_base: KnowledgeBase):
         self.knowledge_base = knowledge_base
         self.agents: Dict[str, BaseAgent] = {}
-        # Default LLM configuration - should be replaced with actual configuration
+
+        # Default LLM configuration using a local/mocked model to avoid API dependencies
+        # This fallback allows the system to work without requiring OpenAI or other proprietary API keys
         self.default_llm_config = {
-            "model": "gpt-4o",
-            "api_key": "your-api-key-here",
-            "base_url": "https://apis.iflow.cn/v1/"
+            "model": "local",  # Use local/model-agnostic configuration
+            "use_local": True,
+            "fallback": True
         }
 
     def create_agent(self, agent_type: str, name: str, **kwargs) -> BaseAgent:
