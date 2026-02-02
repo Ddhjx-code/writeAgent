@@ -1,6 +1,6 @@
 from typing import Dict, List, Any, Optional
 from langgraph.graph import StateGraph, END
-from langgraph.prebuilt import ToolExecutor, ToolInvocation
+from langgraph.prebuilt import ToolNode
 from langchain_core.tools import tool
 
 from src.core.story_state import StoryState
@@ -29,6 +29,10 @@ class NodeType(str, Enum):
     PACING_ADJUST = "pacing_adjust"
     HUMAN_REVIEW = "human_review"
     END = "end"
+    GLOBAL_PLANNING = "global_planning"
+    GLOBAL_PACING_SETUP = "global_pacing_setup"
+    PROCESS_CHAPTER = "process_chapter"
+    INTEGRATE_FULL_STORY = "integrate_full_story"
 
 
 class WorkflowState(BaseModel):
@@ -104,7 +108,7 @@ class NovelWritingWorkflow:
         # Loop back to process next chapter if more chapters are needed
         self.workflow.add_conditional_edges(
             NodeType.ARCHIVE,
-            self._should_continue_writing,  # Check if we need to write more chapters
+            self._continue_writing,  # Check if we need to write more chapters
             {
                 "continue": NodeType.PROCESS_CHAPTER,
                 "complete": NodeType.INTEGRATE_FULL_STORY
