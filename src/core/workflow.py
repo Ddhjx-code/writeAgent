@@ -59,14 +59,14 @@ class NovelWritingWorkflow:
         # Create the workflow graph (LangGraph must be available)
         self.workflow = StateGraph(WorkflowState)
 
-            # Add nodes with the updated architecture (global planning then per-chapter processing)
-            self._add_improved_nodes()
+        # Add nodes with the updated architecture (global planning then per-chapter processing)
+        self._add_improved_nodes()
 
-            # Add edges with the updated flow
-            self._add_improved_edges()
+        # Add edges with the updated flow
+        self._add_improved_edges()
 
-            # Compile the graph
-            self.app = self.workflow.compile()
+        # Compile the graph
+        self.app = self.workflow.compile()
 
     def _add_improved_nodes(self):
         """Add all nodes to the workflow graph with improved architecture"""
