@@ -149,7 +149,7 @@ class WriterAgent(BaseAgent):
                 number=chapter_number,
                 title=title,
                 content=generated_content,
-                status=ChapterState.DRAFT,
+                status=ChapterState.DRAFT,  # 使用枚举实例
                 word_count=len(generated_content.split()),
                 characters_in_chapter=characters_in_scene,
                 locations_in_chapter=locations_in_scene

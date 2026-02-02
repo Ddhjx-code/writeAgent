@@ -1,15 +1,7 @@
 from typing import Dict, List, Any, Optional
-try:
-    from langgraph.graph import StateGraph, END
-    from langgraph.prebuilt import ToolExecutor, ToolInvocation
-    from langchain_core.tools import tool
-except ImportError:
-    # Mock imports if LangGraph is not available
-    StateGraph = None
-    END = None
-    ToolExecutor = None
-    ToolInvocation = None
-    tool = lambda f: f
+from langgraph.graph import StateGraph, END
+from langgraph.prebuilt import ToolExecutor, ToolInvocation
+from langchain_core.tools import tool
 
 from src.core.story_state import StoryState
 try:
@@ -64,14 +56,8 @@ class NovelWritingWorkflow:
         self.agents = self.agent_factory.create_all_agents()
         self.knowledge_base = knowledge_base
 
-        # Check if LangGraph is available
-        if StateGraph is None:
-            print("LangGraph not available, workflow not constructed")
-            self.workflow = None
-            self.app = None
-        else:
-            # Create the workflow graph
-            self.workflow = StateGraph(WorkflowState)
+        # Create the workflow graph (LangGraph must be available)
+        self.workflow = StateGraph(WorkflowState)
 
             # Add nodes with the updated architecture (global planning then per-chapter processing)
             self._add_improved_nodes()
@@ -558,53 +544,7 @@ class NovelWritingWorkflow:
     async def run(self, initial_state: StoryState) -> WorkflowState:
         """Run the complete workflow with the initial state"""
         if self.app is None:
-            # Fallback behavior when LangGraph is not available
-            print("LangGraph not available, running basic implementation")
-            # Run through the agent steps manually
-            current_state = initial_state
-
-            # Simple execution flow instead of workflow execution
-            # Global planning step
-            planner_agent = self.agents.get("Planner")
-            if planner_agent:
-                context = {
-                    "action": "design_story_arc",
-                    "target_chapters": current_state.target_chapter_count,
-                    "story_type": "three_act",
-                    "theme": "general"
-                }
-                planner_agent.process(current_state, context)
-
-            # Chapter writing step
-            if current_state.target_chapter_count > 0:
-                for chap_num in range(1, current_state.target_chapter_count + 1):
-                    writer_agent = self.agents.get("Writer")
-                    if writer_agent:
-                        context = {
-                            "action": "write_chapter",
-                            "chapter_number": chap_num,
-                            "outline": f"Chapter {chap_num} outline based on global story arc",
-                            "target_words": 2000,
-                            "characters": list(current_state.characters.keys()),
-                            "locations": list(current_state.locations.keys())
-                        }
-                        writer_agent.process(current_state, context)
-
-                    # Consistency check (simple)
-                    consistency_agent = self.agents.get("ConsistencyChecker")
-                    if consistency_agent:
-                        context = {
-                            "action": "check_all_consistencies",
-                            "chapter_id": None
-                        }
-                        consistency_agent.process(current_state, context)
-
-            # Return a minimal workflow state without workflow execution
-            return WorkflowState(
-                story_state=current_state,
-                agents=self.agents,
-                knowledge_base=self.knowledge_base
-            )
+            raise RuntimeError("Workflow has not been built properly: app was not compiled. Please ensure LangGraph is available and workflow was constructed successfully.")
         else:
             # Create initial workflow state
             initial_workflow_state = WorkflowState(
@@ -639,135 +579,7 @@ class NovelWritingWorkflow:
     def stream_execution(self, initial_state: StoryState):
         """Stream execution for long-running workflows with better progress reporting"""
         if self.app is None:
-            # Fallback behavior when LangGraph is not available
-            print("LangGraph not available, running basic streaming implementation")
-            # Simulate streaming by running basic processing steps
-            current_state = initial_state
-
-            yield "start", {"status": "workflow_started", "story_state": current_state, "progress": "0%"}
-
-            # Global planning step
-            if "Planner" in self.agents:
-                print("Executing global planning...")
-                yield "global_planning", {"status": "in_progress", "step": "Global Planning", "story_state": current_state}
-
-                planner_agent = self.agents["Planner"]
-                context = {
-                    "action": "design_story_arc",
-                    "target_chapters": current_state.target_chapter_count,
-                    "story_type": "three_act",
-                    "theme": "general"
-                }
-                result = planner_agent.process(current_state, context)
-                yield "global_planning", {"status": "completed", "result": result, "story_state": current_state, "progress": "10%"}
-            else:
-                yield "global_planning", {"status": "skipped", "reason": "Planner agent not available", "progress": "5%"}
-
-            # Global pacing setup
-            if "PacingAdvisor" in self.agents:
-                print("Executing global pacing setup...")
-                yield "global_pacing_setup", {"status": "in_progress", "step": "Global Pacing Setup", "story_state": current_state}
-
-                pacing_agent = self.agents["PacingAdvisor"]
-                context = {
-                    "action": "evaluate_tension_arc",
-                    "content": current_state.summary,
-                    "total_chapters": current_state.target_chapter_count
-                }
-                result = pacing_agent.process(current_state, context)
-                yield "global_pacing_setup", {"status": "completed", "result": result, "story_state": current_state, "progress": "15%"}
-            else:
-                yield "global_pacing_setup", {"status": "skipped", "reason": "PacingAdvisor agent not available", "progress": "10%"}
-
-            # Per-chapter processing
-            total_chapters = max(1, current_state.target_chapter_count)
-            progress_per_chapter = 80.0 / total_chapters  # 80% of total progress for chapter processing
-
-            for chap_num in range(1, total_chapters + 1):
-                chapter_progress = 15 + (chap_num - 1) * progress_per_chapter  # Starting from 15% after global steps
-
-                print(f"Processing Chapter {chap_num}...")
-                yield f"process_chapter_{chap_num}", {"status": "in_progress", "chapter_number": chap_num, "progress": f"{chapter_progress+progress_per_chapter/4:.1f}%"}
-
-                # Writing phase
-                if "Writer" in self.agents:
-                    writer_agent = self.agents["Writer"]
-                    context = {
-                        "action": "write_chapter",
-                        "chapter_number": chap_num,
-                        "outline": f"Chapter {chap_num} outline based on global story arc",
-                        "target_words": 2000,
-                        "characters": list(current_state.characters.keys()),
-                        "locations": list(current_state.locations.keys())
-                    }
-                    result = writer_agent.process(current_state, context)
-                    yield f"chapter_{chap_num}_writing", {"status": "completed", "result": result, "chapter_number": chap_num, "progress": f"{chapter_progress+progress_per_chapter/3:.1f}%"}
-
-                # Dialogue enhancement
-                if "DialogueSpecialist" in self.agents:
-                    dialogue_agent = self.agents["DialogueSpecialist"]
-                    context = {
-                        "action": "optimize_dialogue",
-                        "chapter_id": current_state.get_current_chapter_id() if hasattr(current_state, 'get_current_chapter_id') else f"ch_{chap_num}"
-                    }
-                    result = dialogue_agent.process(current_state, context)
-                    yield f"chapter_{chap_num}_dialogue", {"status": "completed", "result": result, "chapter_number": chap_num, "progress": f"{chapter_progress+progress_per_chapter*2/3:.1f}%"}
-
-                # World building
-                if "WorldBuilder" in self.agents:
-                    world_agent = self.agents["WorldBuilder"]
-                    context = {
-                        "action": "enhance_scene",
-                        "chapter_id": current_state.get_current_chapter_id() if hasattr(current_state, 'get_current_chapter_id') else f"ch_{chap_num}"
-                    }
-                    result = world_agent.process(current_state, context)
-                    yield f"chapter_{chap_num}_world", {"status": "completed", "result": result, "chapter_number": chap_num, "progress": f"{chapter_progress+progress_per_chapter*3/4:.1f}%"}
-
-                # Consistency check
-                if "ConsistencyChecker" in self.agents:
-                    consistency_agent = self.agents["ConsistencyChecker"]
-                    context = {
-                        "action": "check_all_consistencies",
-                        "chapter_id": current_state.get_current_chapter_id() if hasattr(current_state, 'get_current_chapter_id') else f"ch_{chap_num}"
-                    }
-                    result = consistency_agent.process(current_state, context)
-                    yield f"chapter_{chap_num}_consistency", {"status": "completed", "result": result, "chapter_number": chap_num, "progress": f"{chapter_progress+progress_per_chapter*9/10:.1f}%"}
-
-                # Editing
-                if "Editor" in self.agents:
-                    editor_agent = self.agents["Editor"]
-                    context = {
-                        "action": "edit_content",
-                        "chapter_id": current_state.get_current_chapter_id() if hasattr(current_state, 'get_current_chapter_id') else f"ch_{chap_num}",
-                        "focus": ["readability", "tension", "redundancy"]
-                    }
-                    result = editor_agent.process(current_state, context)
-                    yield f"chapter_{chap_num}_editing", {"status": "completed", "result": result, "chapter_number": chap_num, "progress": f"{chapter_progress+progress_per_chapter:.1f}%"}
-
-                # Archiving
-                if "Archivist" in self.agents:
-                    archivist_agent = self.agents["Archivist"]
-                    context = {
-                        "action": "archive_chapter",
-                        "chapter_id": current_state.get_current_chapter_id() if hasattr(current_state, 'get_current_chapter_id') else f"ch_{chap_num}"
-                    }
-                    result = archivist_agent.process(current_state, context)
-                    yield f"chapter_{chap_num}_archived", {"status": "completed", "result": result, "chapter_number": chap_num, "progress": f"{chapter_progress+progress_per_chapter:.1f}%"}
-
-            # Final integration step
-            print("Executing final integration...")
-            yield "final_integration", {"status": "in_progress", "step": "Final Integration", "progress": "95%"}
-
-            if "ConsistencyChecker" in self.agents:
-                consistency_agent = self.agents["ConsistencyChecker"]
-                context = {
-                    "action": "check_all_consistencies",
-                    "chapter_id": None  # Check all chapters
-                }
-                result = consistency_agent.process(current_state, context)
-                yield "final_integration", {"status": "completed", "result": result, "progress": "98%"}
-
-            yield "end", {"status": "workflow_completed", "story_state": current_state, "progress": "100%"}
+            raise RuntimeError("Stream execution not available: workflow app was not compiled. Please ensure LangGraph is available and workflow was constructed successfully.")
         else:
             # Execute with streaming with better progress reporting
             initial_workflow_state = WorkflowState(

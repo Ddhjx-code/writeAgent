@@ -488,16 +488,15 @@ class NovelWritingApp:
             self.current_story_state.chapters.items(),
             key=lambda x: x[1].number
         ):
-            status_map = {
-                ChapterState.DRAFT: "Draft",
-                ChapterState.REVIEW: "Review",
-                ChapterState.APPROVED: "Approved",
-                ChapterState.REJECTED: "Rejected",
-                ChapterState.REVISION: "Revision",
-                ChapterState.COMPLETED: "Completed"
-            }
-            status = status_map.get(chapter.status, "Draft")
-            chapter_list.append(f"Chapter {chapter.number} - {chapter.title} ({status})")
+            # Handle both enum and string representations of status
+            if isinstance(chapter.status, ChapterState):
+                status_value = chapter.status.value if hasattr(chapter.status, 'value') else str(chapter.status)
+            else:
+                status_value = str(chapter.status)
+
+            # Map status to user-friendly string
+            status_display = status_value.title() if status_value else "Draft"
+            chapter_list.append(f"Chapter {chapter.number} - {chapter.title} ({status_display})")
 
         return chapter_list if chapter_list else ["No chapters yet"]
 
@@ -556,47 +555,48 @@ class NovelWritingApp:
         try:
             new_chapter_list = self.get_chapter_list()
             # Return the first chapter's content if available
-            content = "No chapters available"
+            content = "没有章节可显示"
             if self.current_story_state.chapters:
                 first_chapter = next(iter(self.current_story_state.chapters.values()))
-                content = first_chapter.content
+                content = first_chapter.content or f"第{first_chapter.number}章内容为空"
             return new_chapter_list, content
         except Exception as e:
             print(f"Error refreshing chapters: {str(e)}")
-            return ["No chapters yet"], "Error loading chapters"
+            import traceback
+            traceback.print_exc()
+            return ["No chapters yet"], "刷新章节时出错"
 
     def load_chapter_content(self, chapter_choice: str) -> str:
         """Load chapter content when chapter is selected"""
         try:
-            # Parse selected chapter number from the formatted choice
-            # Handle different formats like 'Chapter X - Chapter X (Status)' or just 'Chapter X'
+            if chapter_choice == "No chapters yet":
+                return "没有章节可显示"
 
-            # For format like "Chapter 1 - Chapter 1 (Draft)", we split and take first number
-            parts = chapter_choice.split(' ')
-            if len(parts) >= 2:
-                # Try to extract number from the first part
-                if parts[1].isdigit():
-                    chapter_num = int(parts[1])
-                else:
-                    # If not a number, try to extract from the full string
-                    import re
-                    numbers = re.findall(r'\d+', chapter_choice)
-                    if numbers:
-                        chapter_num = int(numbers[0])
-                    else:
-                        return f"Could not extract chapter number from: {chapter_choice}"
-            else:
-                return f"Unexpected chapter format: {chapter_choice}"
-
-            # Find the chapter with this number
+            # Check if chapter exists by directly looking for match
             for ch_id, chapter in self.current_story_state.chapters.items():
-                if chapter.number == chapter_num:
-                    return chapter.content
+                expected_format1 = f"Chapter {chapter.number} - {chapter.title} ({chapter.status.value if hasattr(chapter.status, 'value') else chapter.status})"
+                expected_format2 = f"Chapter {chapter.number} - {chapter.title} ({chapter.status})"
 
-            return f"Chapter {chapter_num} content not found"
+                if chapter_choice == expected_format1 or chapter_choice == expected_format2 or chapter_choice.startswith(f"Chapter {chapter.number} - "):
+                    return chapter.content or f"第{chapter.number}章内容为空"
+
+            # Fallback: Parse selected chapter number from the formatted choice
+            import re
+            numbers = re.findall(r'\d+', chapter_choice)
+            if numbers:
+                chapter_num = int(numbers[0])
+
+                # Find the chapter with this number
+                for ch_id, chapter in self.current_story_state.chapters.items():
+                    if chapter.number == chapter_num:
+                        return chapter.content or f"第{chapter.number}章内容为空"
+
+            return f"章节内容未找到: {chapter_choice}\n可用章节: {list(self.current_story_state.chapters.keys())}"
         except Exception as e:
             print(f"Error loading chapter content: {str(e)}")
-            return f"Could not load chapter content: {str(e)}"
+            import traceback
+            traceback.print_exc()
+            return f"无法加载章节内容: {str(e)}"
 
     def refresh_characters(self) -> List[List[str]]:
         """Refresh the list of existing characters"""
