@@ -156,14 +156,15 @@ class KnowledgeBase:
                 "type": "entity",
                 "entity_type": entity.type,
                 "name": entity.name,
-                "relationships": relationships_str  # Convert to string to ensure compatibility
+                "relationships": relationships_str,  # Convert to string to ensure compatibility
+                "story_id": entity.story_id if entity.story_id else "global"  # Include story_id in metadata for filtering
             }
         )
 
         entity_id = self.add_document(entity_doc, doc_id=entity.id)
         return entity_id
 
-    def query(self, query_str: str, similarity_top_k: int = 5) -> List[Document]:
+    def query(self, query_str: str, similarity_top_k: int = 5, story_id: Optional[str] = None) -> List[Document]:
         """Query the knowledge base"""
         try:
             # Use the retriever directly to avoid LLM dependency issues
@@ -175,6 +176,25 @@ class KnowledgeBase:
             for i, node in enumerate(nodes):
                 if node is not None:
                     try:
+                        # Check if story_id filtering is requested
+                        if story_id is not None:
+                            # Try to access node metadata to filter by story_id
+                            node_story_id = None
+                            # Check multiple possible metadata locations
+                            if hasattr(node, 'metadata') and isinstance(node.metadata, dict):
+                                node_story_id = node.metadata.get('story_id', 'global')
+                            elif hasattr(node, 'extra_info') and isinstance(node.extra_info, dict):
+                                node_story_id = node.extra_info.get('story_id', 'global')
+                            else:
+                                # For nodes that don't have metadata accessible, check if we can get it
+                                node_metadata = getattr(node, 'metadata', {})
+                                if isinstance(node_metadata, dict):
+                                    node_story_id = node_metadata.get('story_id', 'global')
+
+                            # Only include nodes that match the requested story_id
+                            if node_story_id != story_id:
+                                continue
+
                         # Extract content from node with multiple fallback strategies
                         content = None
                         # Try different possible content access methods
@@ -281,3 +301,4 @@ class KnowledgeEntity(BaseModel):
     description: str
     metadata: Dict[str, Any] = Field(default_factory=dict)
     relationships: List[str] = Field(default_factory=list)  # IDs of related entities
+    story_id: Optional[str] = None  # Added to distinguish between different stories

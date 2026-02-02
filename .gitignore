@@ -50,4 +50,4 @@ ENV/
 *.backup
 
 # Fix files (generated during implementation)
-fix_*.py
+fix_*.pystorage/

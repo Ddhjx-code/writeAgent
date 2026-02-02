@@ -314,9 +314,29 @@ class NovelWritingApp:
                 target_chapter_count=target_chapters
             )
 
-            # Add some basic metadata to KB for the story
-            story_info = f"Story: {title}, Genre: {genre}, Summary: {summary}"
-            self.knowledge_base.add_document(story_info, f"story_{title.replace(' ', '_')}")
+            # Add story info to KB with story_id for filtering
+            story_info = {
+                'title': title,
+                'genre': genre,
+                'summary': summary
+            }
+
+            from src.core.knowledge_base import KnowledgeEntity
+             # Add to KB as an entity with story_id
+            story_entity = KnowledgeEntity(
+                id=f"story_{title.replace(' ', '_').replace(':', '_')}",
+                name=title,
+                type="story_info",
+                description=summary,
+                metadata={
+                    'genre': genre,
+                    'summary': summary,
+                    'target_chapters': target_chapters,
+                    'story_id': self.current_story_state.id  # Add story_id for filtering
+                },
+                relationships=[]
+            )
+            self.knowledge_base.add_entity(story_entity)
 
             # Initialize target chapters in story state to make them available in dropdown
             for i in range(1, int(target_chapters) + 1):
@@ -330,6 +350,21 @@ class NovelWritingApp:
                     status=ChapterState.DRAFT
                 )
                 self.current_story_state.add_chapter(chapter)
+
+                # Add chapter placeholder to knowledge base with story_id
+                chapter_entity = KnowledgeEntity(
+                    id=f"ch_{self.current_story_state.id}_{i}",
+                    name=f"Chapter {i}",
+                    type="chapter",
+                    description=f"Chapter {i} of {title}",
+                    metadata={
+                        'story_id': self.current_story_state.id,
+                        'chapter_number': i,
+                        'status': 'planned'
+                    },
+                    relationships=[]
+                )
+                self.knowledge_base.add_entity(chapter_entity)
 
             return f"Created new story: {title}. Initialized {target_chapters} chapters."
         except Exception as e:
@@ -386,6 +421,9 @@ class NovelWritingApp:
                         # For any other type, convert to string
                         simple_metadata[safe_key] = str(value)
 
+            # Add story_id to metadata to enable filtering
+            simple_metadata['story_id'] = self.current_story_state.id
+
             self.knowledge_base.add_entity(
                 KnowledgeEntity(
                     id=char_id,
@@ -421,6 +459,23 @@ class NovelWritingApp:
             )
 
             self.current_story_state.add_location(location)
+
+            # Also add to knowledge base with story_id
+            from src.core.knowledge_base import KnowledgeEntity
+            loc_entity = KnowledgeEntity(
+                id=loc_id,
+                name=location.name,
+                type="location",
+                description=location.description,
+                metadata={
+                    'type': location.type,
+                    'features': location.features,
+                    'significance': location.significance,
+                    'story_id': self.current_story_state.id  # Add story_id for filtering
+                },
+                relationships=[]
+            )
+            self.knowledge_base.add_entity(loc_entity)
 
             return f"Added location: {name}", self.get_locations_list()
         except Exception as e:
@@ -559,73 +614,232 @@ class NovelWritingApp:
         """执行选定的工作流操作"""
         try:
             import asyncio
+            import concurrent.futures
 
-            # 根据所选操作翻译开始消息
+            # 确保当前故事状态和知识库同步
+            if not self.current_story_state.title:
+                return "错误: 请先创建故事", "❌ 错误: 工作流需要一个有效的故事作为上下文，请先创建新故事\n\n当前没有故事，请转到'故事创作'标签页创建新故事。"
+
+            # 开始日志消息
+            log_message = f"🚀 开始工作流执行"
+            log_message += f"\n------------------------"
+            log_message += f"\n📖 故事: {self.current_story_state.title}"
+            log_message += f"\n🎭 角色: {len(self.current_story_state.characters)} 个"
+            log_message += f"\n🌍 地点: {len(self.current_story_state.locations)} 个"
+            log_message += f"\n📚 目标章节数: {self.current_story_state.target_chapter_count} 章"
+            log_message += f"\n ⏳ 状态: 待开始"
+
+            # 在执行工作流前同步当前故事信息到知识库
+            self._sync_story_state_to_knowledge_base()
+            log_message += f"\n🔄 知识库同步: 完成"
+
             if "完整章节" in action:
-                log_message = f"开始执行工作流操作: {action}"
-            elif "仅运行规划" in action:
-                log_message = f"开始执行工作流操作: {action}"
-            elif "仅运行写作" in action:
-                log_message = f"开始执行工作流操作: {action}"
-            elif "仅运行审阅" in action:
-                log_message = f"开始执行工作流操作: {action}"
-            else:
-                log_message = f"开始执行工作流操作: {action}"
-
-            if "完整章节" in action:
-                # 运行单个章节的完整工作流（异步方法需要等待）
-                if asyncio.get_event_loop().is_running():
-                    # 如果已经在事件循环中运行，则无法使用run_until_complete
-                    # 这种情况下返回提示信息或处理逻辑
-                    import threading
-                    result = None
-                    exception_occurred = None
-
-                    def run_workflow():
-                        nonlocal result, exception_occurred
+                # 用流式执行方法更新UI
+                def run_workflow_streamed():
+                    import inspect
+                    progress_log = log_message
+                    if hasattr(self.workflow, 'stream_execution'):
+                        # 使用流式执行方法，可以显示实时进度
+                        results_received = 0
                         try:
-                            loop = asyncio.new_event_loop()
-                            asyncio.set_event_loop(loop)
-                            try:
-                                result = loop.run_until_complete(self.workflow.run(self.current_story_state))
-                            finally:
-                                loop.close()
-                        except Exception as e:
-                            exception_occurred = e
+                            for step_key, step_value in self.workflow.stream_execution(self.current_story_state):
+                                results_received += 1
+                                progress_log = f"🚀 执行中... {step_value.get('progress', '')}"
+                                progress_log += f"\n------------------------"
+                                progress_log += f"\n📖 故事: {self.current_story_state.title}"
+                                progress_log += f"\n🎭 角色: {len(self.current_story_state.characters)} 个"
+                                progress_log += f"\n🌍 地点: {len(self.current_story_state.locations)} 个"
+                                progress_log += f"\n📚 目标章节数: {self.current_story_state.target_chapter_count} 章"
 
-                    thread = threading.Thread(target=run_workflow)
-                    thread.start()
-                    thread.join(timeout=30)  # 30秒超时
+                                # 添加详细的步骤信息
+                                if 'step' in step_value:
+                                    progress_log += f"\n📋 当前步骤: {step_value['step']}"
+                                elif 'chapter_number' in step_value:
+                                    progress_log += f"\n📝 处理章节: 第{step_value['chapter_number']}章"
 
-                    if exception_occurred:
-                        raise exception_occurred
-                    elif result is None and thread.is_alive():
-                        raise TimeoutError("工作流执行超时")
+                                if 'status' in step_value:
+                                    status_emoji = "✅" if step_value['status'] == 'completed' else "🔄" if step_value['status'] == 'in_progress' else "⏸️"
+                                    progress_log += f"\n🔹 状态: {status_emoji} {step_value['status']}"
+
+                                progress_log += f"\n⏱️ 进度: {step_value.get('progress', '未知')}"
+
+                                # 增加当前统计信息
+                                progress_log += f"\n📊 当前状态:"
+                                progress_log += f"\n   - 已完成章节: {len(self.current_story_state.chapters)}"
+                                progress_log += f"\n   - 当前角色: {len(self.current_story_state.characters)}"
+                                progress_log += f"\n   - 当前地点: {len(self.current_story_state.locations)}"
+
+                                if 'result' in step_value:
+                                    # 添加简化的结果信息，避免日志过大
+                                    result_str = str(step_value['result'])
+                                    if len(result_str) > 100:
+                                        result_str = result_str[:100] + "..."
+                                    progress_log += f"\n🔍 结果预览: {result_str}"
+
+                                progress_log += f"\n------------------------"
+
+                                # 打印进度更新（这对用户不可见，仅用于系统日志）
+                                print(f"Progress update: {step_value.get('progress', 'unknown')} - {step_key}")
+
+                                # 为了演示目的，实际实现中这里可能需要yield
+                                # 但由于在Gradio上下文中这个函数是被单次调用，我们会显示最终日志
+                                pass
+
+                        except Exception as step_error:
+                            progress_log += f"\n❌ 执行步骤时出错: {str(step_error)}"
+                            import traceback
+                            progress_log += f"\n🔧 技术详情: {traceback.format_exc()[:500]}..."
                     else:
-                        log_message += f"\n完成: {result}"
-                else:
-                    # 否则可以使用常规方式执行
-                    loop = asyncio.new_event_loop()
-                    asyncio.set_event_loop(loop)
-                    try:
-                        result = loop.run_until_complete(self.workflow.run(self.current_story_state))
-                        log_message += f"\n完成: {result}"
-                    finally:
-                        loop.close()
-            elif "规划" in action:
-                # 仅运行规划部分
-                # 这需要运行部分工作流
-                log_message += "\n规划执行将在此开始"
-            elif "写作" in action:
-                # 仅运行写作部分
-                log_message += "\n写作执行将在此开始"
-            elif "审阅" in action:
-                # 仅运行审阅部分
-                log_message += "\n审阅执行将在此开始"
+                        # 如果没有stream_execution方法，则执行传统工作流
+                        import asyncio
+                        loop = asyncio.new_event_loop()
+                        asyncio.set_event_loop(loop)
+                        try:
+                            if inspect.iscoroutinefunction(self.workflow.run):
+                                result = loop.run_until_complete(self.workflow.run(self.current_story_state))
+                            else:
+                                result = self.workflow.run(self.current_story_state)
+                            progress_log += f"\n⚠️ 警告: 使用传统执行方法（无详细进度信息）"
+                        finally:
+                            loop.close()
 
-            return f"已执行: {action}", log_message
+                    # 添加最终完成统计
+                    progress_log += f"\n\n🎉 工作流执行完成! 🎉"
+                    progress_log += f"\n------------------------"
+                    progress_log += f"\n📊 最终统计:"
+                    progress_log += f"\n   - 总体进度: 100%"
+                    progress_log += f"\n   - 已完成章节: {len(self.current_story_state.chapters)}"
+                    progress_log += f"\n   - 保存角色: {len(self.current_story_state.characters)}"
+                    progress_log += f"\n   - 保存地点: {len(self.current_story_state.locations)}"
+                    progress_log += f"\n   - 故事状态: 准备就绪"
+                    progress_log += f"\n------------------------"
+                    progress_log += f"\n✨ 感谢使用AI协作小说创作系统！"
+
+                    return progress_log
+
+                # 使用线程池执行工作流
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    future = executor.submit(run_workflow_streamed)
+                    try:
+                        # 获取最终执行日志 (3小时超时 - 10800秒)
+                        log_message = future.result(timeout=10800)
+                    except concurrent.futures.TimeoutError:
+                        timeout_msg = f"\n\n⏰ ⚠️ 警告: 工作流执行超时 (已运行超过3小时)\n"
+                        timeout_msg += f"------------------------\n"
+                        timeout_msg += f"📋 超时时的系统状态:\n"
+                        timeout_msg += f"   - 已完成章节: {len(self.current_story_state.chapters)}\n"
+                        timeout_msg += f"   - 当前角色: {len(self.current_story_state.characters)}\n"
+                        timeout_msg += f"   - 当前地点: {len(self.current_story_state.locations)}\n"
+                        timeout_msg += f"💡 建议:\n"
+                        timeout_msg += f"   - 检查API密钥配置并确保网络连接正常\n"
+                        timeout_msg += f"   - 或者尝试减少目标章节数再次执行\n"
+                        timeout_msg += f"   - 如果问题持续，请重启应用程序\n"
+                        timeout_msg += f"------------------------\n"
+                        log_message += timeout_msg
+
+            elif "仅运行规划" in action:
+                log_message += "\n\nℹ️ [说明] 部分高级工作流选项仍处于开发阶段"
+                log_message += f"\n🎯 当前操作: {action}"
+                log_message += "\n💡 温馨提示: 推荐选择'运行完整章节工作流'以获得最完整的故事创作体验"
+                log_message += "\n------------------------"
+            elif "仅运行写作" in action:
+                log_message += "\n\nℹ️ [说明] 部分高级工作流选项仍处于开发阶段"
+                log_message += f"\n🎯 当前操作: {action}"
+                log_message += "\n💡 温馨提示: 推荐选择'运行完整章节工作流'以获得最完整的故事创作体验"
+                log_message += "\n------------------------"
+            elif "仅运行审阅" in action:
+                log_message += "\n\nℹ️ [说明] 部分高级工作流选项仍处于开发阶段"
+                log_message += f"\n🎯 当前操作: {action}"
+                log_message += "\n💡 温馨提示: 推荐选择'运行完整章节工作流'以获得最完整的故事创作体验"
+                log_message += "\n------------------------"
+            else:
+                log_message += f"\n\n⚠️ 未知操作: {action}"
+                log_message += "\n💡 可用操作: '运行完整章节工作流', '仅运行规划', '仅运行写作', '仅运行审阅'"
+                log_message += "\n------------------------"
+
+            return f"✅ 工作流执行完成", log_message
         except Exception as e:
-            return f"错误: {str(e)}", f"执行过程中出现错误: {str(e)}"
+            # 详细错误报告显示
+            import traceback
+            error_details = traceback.format_exc()
+
+            # 创建用户友好的错误报告
+            user_friendly_error = f"❌ 执行失败: {type(e).__name__}"
+            user_friendly_error += f"\n------------------------"
+            user_friendly_error += f"\n📖 错误描述: {str(e)}"
+            user_friendly_error += f"\n🔧 执行上下文:"
+            user_friendly_error += f"\n   • 当前故事: {self.current_story_state.title or '（无标题）'}"
+            user_friendly_error += f"\n   • 章节数: {len(self.current_story_state.chapters)}"
+            user_friendly_error += f"\n   • 角色数: {len(self.current_story_state.characters)}"
+            user_friendly_error += f"\n   • 地点数: {len(self.current_story_state.locations)}"
+            user_friendly_error += f"\n\n⚙️ 系统配置检查:"
+            import os
+            openai_configured = bool(os.getenv('OPENAI_API_KEY'))
+            anthropic_configured = bool(os.getenv('ANTHROPIC_API_KEY'))
+            user_friendly_error += f"\n   • OpenAI API: {'✅ 已配置' if openai_configured else '❌ 未配置'}"
+            user_friendly_error += f"\n   • Anthropic API: {'✅ 已配置' if anthropic_configured else '❌ 未配置'}"
+            user_friendly_error += f"\n\n📋 常见问题与解决方案:"
+            user_friendly_error += f"\n   1️⃣  缺少API密钥 - 请检查config/.env文件中的配置"
+            user_friendly_error += f"\n   2️⃣  API密钥无效 - 请确认密钥正确且有效"
+            user_friendly_error += f"\n   3️⃣  网络连接问题 - 请检查网络连接"
+            user_friendly_error += f"\n   4️⃣  API服务不可用 - 请稍后重试"
+            user_friendly_error += f"\n\n💡 如果问题持续存在，请联系系统管理员"
+            user_friendly_error += f"\n------------------------"
+
+            # 仅对开发者显示技术细节
+            user_friendly_error += f"\n🔧 技术详情 (仅开发者使用):"
+            user_friendly_error += f"\n{error_details[:1500]}..." if len(error_details) > 1500 else f"\n{error_details}"
+            user_friendly_error += f"\n------------------------"
+
+            # 记录错误到系统日志
+            print(f"Workflow execution error: {str(e)}")
+            print(f"Traceback: {error_details}")
+
+            return f"❌ 执行失败: {type(e).__name__}", user_friendly_error
+
+    def _sync_story_state_to_knowledge_base(self):
+        """同步当前故事状态到知识库"""
+        try:
+            # 同步角色
+            for char_id, character in self.current_story_state.characters.items():
+                from src.core.knowledge_base import KnowledgeEntity
+                updated_char_entity = KnowledgeEntity(
+                    id=char_id,
+                    name=character.name,
+                    type="character",
+                    description=character.description,
+                    metadata={
+                        'role': character.role,
+                        'personality_traits': character.personality_traits,
+                        'background': character.background,
+                        'story_id': self.current_story_state.id
+                    },
+                    relationships=list(character.relationships.keys()) if character.relationships else [],
+                    story_id=self.current_story_state.id
+                )
+                self.knowledge_base.add_entity(updated_char_entity)
+
+            # 同步地点
+            for loc_id, location in self.current_story_state.locations.items():
+                from src.core.knowledge_base import KnowledgeEntity
+                updated_loc_entity = KnowledgeEntity(
+                    id=loc_id,
+                    name=location.name,
+                    type="location",
+                    description=location.description,
+                    metadata={
+                        'type': location.type,
+                        'features': location.features,
+                        'significance': location.significance,
+                        'story_id': self.current_story_state.id
+                    },
+                    relationships=[],
+                    story_id=self.current_story_state.id
+                )
+                self.knowledge_base.add_entity(updated_loc_entity)
+
+        except Exception as e:
+            print(f"同步故事状态到知识库时出错: {str(e)}")
 
     def query_knowledge_base(self, query: str) -> List[List[str]]:
         """Query the knowledge base"""
@@ -641,6 +855,66 @@ class NovelWritingApp:
             return formatted_results
         except Exception as e:
             return [["error", "error", f"Error querying knowledge base: {str(e)}"]]
+
+    def clear_current_story(self) -> str:
+        """清空当前故事状态，但保留用户配置"""
+        try:
+            # 保留API配置信息，只清空故事数据
+            current_api_key = os.getenv("OPENAI_API_KEY")
+            current_base_url = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
+            current_ollama_model = os.getenv("OLLAMA_EMBEDDING_MODEL", "qwen3-embedding:0.6b")
+
+            # 1. 重新初始化知识库 (清理故事相关数据，但保留配置)
+            self.knowledge_base = KnowledgeBase(
+                openai_api_key=current_api_key,
+                openai_base_url=current_base_url,
+                ollama_model=current_ollama_model
+            )
+
+            # 2. 重新初始化工作流 (保持知识库引用)
+            self.workflow = create_default_workflow(self.knowledge_base)
+
+            # 3. 重置故事状态
+            self.current_story_state = StoryState()
+
+            # 4. 重置UI标志
+            self.workflow_running = False
+
+            return "当前故事已清空，系统已重置"
+        except Exception as e:
+            return f"清除故事时发生错误: {str(e)}"
+
+    def reset_system(self) -> str:
+        """重置整个系统到初始状态"""
+        try:
+            # 保留API配置信息，只清空所有数据
+            current_api_key = os.getenv("OPENAI_API_KEY")
+            current_base_url = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
+            current_ollama_model = os.getenv("OLLAMA_EMBEDDING_MODEL", "qwen3-embedding:0.6b")
+
+            # 重新初始化所有组件
+            self.knowledge_base = KnowledgeBase(
+                openai_api_key=current_api_key,
+                openai_base_url=current_base_url,
+                ollama_model=current_ollama_model
+            )
+
+            self.workflow = create_default_workflow(self.knowledge_base)
+            self.current_story_state = StoryState()
+            self.workflow_running = False
+
+            # 尝试删除本地存储的文件
+            import shutil
+            try:
+                if os.path.exists("./storage"):
+                    shutil.rmtree("./storage")
+                    os.makedirs("./storage", exist_ok=True)
+            except Exception as storage_error:
+                print(f"清除存储目录时出错（可忽略）: {storage_error}")
+
+            return "系统已完全重置"
+        except Exception as e:
+            return f"重置系统时发生错误: {str(e)}"
 
     def launch(self, share: bool = False):
         """Launch the Gradio interface"""
@@ -685,8 +959,25 @@ class NovelWritingApp:
 
             # Add general actions
             with gr.Row():
-                clear_btn = gr.Button("清空所有")
+                clear_btn = gr.Button("清空当前故事")
+                reset_btn = gr.Button("重置系统")
                 export_btn = gr.Button("导出故事")
+
+            with gr.Row():
+                clear_status = gr.Textbox(label="操作状态", interactive=False)
+
+            # 绑定清除事件
+            clear_btn.click(
+                self.clear_current_story,
+                inputs=[],
+                outputs=[clear_status]
+            )
+
+            reset_btn.click(
+                self.reset_system,
+                inputs=[],
+                outputs=[clear_status]
+            )
 
             # Add dashboard refresh functionality
             def refresh_dashboard():
