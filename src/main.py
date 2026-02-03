@@ -1,0 +1,131 @@
+import asyncio
+import argparse
+import sys
+from typing import Dict, Any
+from .config import Config
+from .core.engine import WritingEngine
+from .workflow.state import GraphState
+
+
+def create_sample_story_data() -> Dict[str, Any]:
+    """Create sample story data to initialize the system."""
+    return {
+        "title": "My AI Collaborative Novel",
+        "description": "A story created with AI collaboration",
+        "outline": {
+            "initial_outline": "A fantasy adventure story about a hero's journey",
+            "genre": "Fantasy",
+            "target_chapters": 5,
+            "themes": ["heroism", "friendship", "discovery"]
+        },
+        "characters": {
+            "Aelar": {
+                "name": "Aelar",
+                "description": "A young wizard with untapped magical abilities",
+                "role": "Protagonist",
+                "personality_traits": ["curious", "brave", "sometimes reckless"]
+            },
+            "Mira": {
+                "name": "Mira",
+                "description": "A seasoned warrior and guide",
+                "role": "Supporting",
+                "personality_traits": ["wise", "protective", "practical"]
+            }
+        },
+        "world_details": {
+            "setting": "A fantasy world with magic and mythical creatures",
+            "magic_system": "Elemental magic based on natural forces",
+            "locations": ["Crystal Caves", "Sky Cities", "Ancient Forests"]
+        },
+        "notes": ["Begin with character introduction and magic discovery"]
+    }
+
+
+async def main():
+    """Main entry point for the application."""
+    parser = argparse.ArgumentParser(description="AI Collaborative Novel Writing System")
+    parser.add_argument("--ui", action="store_true", help="Launch the Gradio UI")
+    parser.add_argument("--interface-share", action="store_true", help="Share the Gradio UI publicly")
+    parser.add_argument("--create-story", action="store_true", help="Create a sample story")
+    parser.add_argument("--run-story", action="store_true", help="Run the story generation process")
+    parser.add_argument("--iterations", type=int, default=20, help="Maximum iterations for story generation")
+    parser.add_argument("--target-chapters", type=int, default=5, help="Target number of chapters to generate")
+    parser.add_argument("--load-state", type=str, help="Path to load existing story state")
+    parser.add_argument("--save-path", type=str, help="Path to save story state")
+
+    args = parser.parse_args()
+
+    # Initialize configuration
+    config = Config()
+
+    # Initialize the writing engine
+    engine = WritingEngine(config)
+    await engine.initialize()
+
+    print("AI Collaborative Novel Writing System initialized!")
+    print(f"System Status: {engine.get_system_status()}")
+
+    initial_state = None
+
+    # Load existing story if specified
+    if args.load_state:
+        print(f"Loading story state from {args.load_state}")
+        initial_state = await engine.load_story_state(args.load_state)
+    elif args.create_story or args.run_story:
+        # Create a new story
+        print("Creating a new story...")
+        story_data = create_sample_story_data()
+        initial_state = await engine.create_new_story(story_data)
+        print(f"Created story: '{initial_state.title}''")
+
+    # Run story generation if requested
+    if args.run_story and initial_state:
+        print("Starting story generation...")
+        final_state = await engine.run_story_generation(
+            initial_state,
+            max_iterations=args.iterations,
+            target_chapters=args.target_chapters
+        )
+
+        print(f"Story generation completed!")
+        print(f"Generated {len(final_state.chapters)} chapters")
+        print(f"Final status: {final_state.story_status}")
+
+        # Display metrics
+        metrics = await engine.get_story_metrics(final_state)
+        print(f"Story metrics: {metrics}")
+
+        # Save the result if path was specified
+        if args.save_path:
+            success = await engine.save_story_state(final_state, args.save_path)
+            print(f"Story state saved: {success}")
+
+        # Export the story
+        print("\nExporting story as text...")
+        story_txt = await engine.export_story(final_state, "txt")
+        print(story_txt[:500] + "..." if len(story_txt) > 500 else story_txt)
+
+    # Launch UI if requested
+    if args.ui:
+        if engine.is_running:
+            print("The engine is currently running a story generation process.")
+            print("You may want to complete that first before starting the UI, or run them separately.")
+
+        await engine.start_interface_server(share=args.interface_share)
+
+    # If no specific mode is selected, show status and instructions
+    if not any([args.ui, args.run_story, args.create_story, args.load_state]):
+        print("\nAvailable modes:")
+        print("  --ui                    Launch the Gradio web interface")
+        print("  --create-story          Create a sample story to work with")
+        print("  --run-story             Execute the story generation workflow")
+        print("  --load-state <path>     Load an existing story state")
+        print("  --help                  Show this help message")
+        print("\nExample usage:")
+        print("  python -m src.main --create-story --run-story --iterations 15")
+        print("  python -m src.main --ui --interface-share")
+        print("  python -m src.main --load-state my_story.json --ui")
+
+
+if __name__ == "__main__":
+    asyncio.run(main())

@@ -1,0 +1,113 @@
+[build-system]
+requires = ["setuptools>=45", "wheel", "setuptools_scm[toml]>=6.2"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ai-collaborative-writing"
+version = "0.1.0"
+description = "An AI collaborative novel writing system with multiple specialized agents"
+readme = "README.md"
+authors = [
+    { name = "AI Collaborative Writing Team", email = "team@collaborativewriter.com" }
+]
+license = { text = "MIT" }
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+]
+requires-python = ">=3.8"
+dependencies = [
+    "langchain>=0.0.300",
+    "langgraph>=0.0.13",
+    "llamaindex>=0.9.0",
+    "chromadb>=0.4.0",
+    "pyautogen>=0.2.0",
+    "gradio>=4.0.0",
+    "pydantic>=1.10.0",
+    "tiktoken>=0.5.0",
+    "openai>=1.0.0",
+    "anthropic>=0.3.0",
+    "mistralai>=0.1.0",
+    "cohere>=4.0.0",
+    "pyyaml>=6.0",
+    "python-dotenv>=1.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-asyncio>=0.21.0",
+    "black>=23.0.0",
+    "flake8>=6.0.0",
+    "mypy>=1.0.0",
+    "isort>=5.0.0",
+    "pre-commit>=3.0.0",
+]
+deploy = [
+    "docker>=6.0.0",
+    "gunicorn>=21.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/your-username/writeAgent"
+Repository = "https://github.com/your-username/writeAgent"
+"Bug Reports" = "https://github.com/your-username/writeAgent/issues"
+"Changelog" = "https://github.com/your-username/writeAgent/releases"
+
+[project.scripts]
+collaborative-writer = "src.main:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.black]
+line-length = 88
+target-version = ['py38']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+  | venv
+)/
+'''
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+known_first_party = ["src"]
+known_third_party = [
+    "gradio", "pydantic", "langchain", "langgraph", "llamaindex", "chromadb", "pyautogen",
+    "openai", "anthropic", "mistralai", "cohere", "pyyaml", "python-dotenv", "tiktoken"
+]
+known_local_folder = ["src"]
+line_length = 88
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+warn_unused_ignores = true
+disallow_untyped_defs = true
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+addopts = "-ra -q"
