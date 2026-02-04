@@ -154,17 +154,20 @@ class GraphState(BaseModel):
 
         # Check hierarchical phase-specific continuation criteria
         if self.current_hierarchical_phase == "macro":
-            # Return True if we've met the macro completion criteria or if it's not set
-            macro_complete = len(self.macro_completion_criteria) == 0
-            return not macro_complete
+            # For macro, continue if we have not met completion criteria and the criteria exist
+            has_criteria = len(self.macro_completion_criteria) > 0
+            is_complete = self.macro_progress >= 1.0
+            return has_criteria and not is_complete
         elif self.current_hierarchical_phase == "mid":
-            # Return True if we've met the mid completion criteria or if it's not set
-            mid_complete = len(self.mid_completion_criteria) == 0 or self.mid_progress >= 1.0
-            return not mid_complete
+            # For mid, continue if we have not met completion criteria and the criteria exist
+            has_criteria = len(self.mid_completion_criteria) > 0
+            is_complete = self.mid_progress >= 1.0
+            return has_criteria and not is_complete
         else:  # micro
-            # Return True if we've met the micro completion criteria or if it's not set
-            micro_complete = len(self.micro_completion_criteria) == 0 or self.micro_progress >= 1.0
-            return not micro_complete
+            # For micro, continue if we have not met completion criteria and the criteria exist
+            has_criteria = len(self.micro_completion_criteria) > 0
+            is_complete = self.micro_progress >= 1.0
+            return has_criteria and not is_complete
 
     def can_transition_to_phase(self, target_phase: Literal["macro", "mid", "micro"]) -> bool:
         """Check if a transition to the target hierarchical phase is allowed."""

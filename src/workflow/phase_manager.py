@@ -227,8 +227,9 @@ class HierarchicalPhaseManager:
             )
 
             completion_status["phase_complete"] = is_complete
+            # Use HierarchicalPhaseManager's method to determine transition instead of GraphState's method
             completion_status["recommended_next_phase"] = "micro" if is_complete else (
-                "macro" if state.should_transition_to_phase("macro") else "mid"
+                "macro" if self.should_transition_to_phase(state, "macro") else "mid"
             )
             completion_status["reasoning"] = (
                 "Chapter plans ready for detailed creation"
@@ -246,7 +247,7 @@ class HierarchicalPhaseManager:
             completion_status["phase_complete"] = is_complete
             completion_status["recommended_next_phase"] = (
                 "mid" if is_complete and len(state.chapters) < state.target_mid_completion else
-                "macro" if state.should_transition_to_phase("macro") else
+                "macro" if self.should_transition_to_phase(state, "macro") else
                 "micro"
             )
             completion_status["reasoning"] = (

@@ -15,21 +15,34 @@ class LLMProvider:
 
     def __init__(self, config: Config):
         self.config = config
+        self.openai_client = None  # Initialize as instance variable
+        self.anthropic_client = None
+        self.mistral_client = None
+        self.cohere_client = None
         self._setup_clients()
 
     def _setup_clients(self) -> None:
         """Setup clients for all available providers with security validation."""
-        # Setup OpenAI client if API key provided
+        # Setup OpenAI client if API key provided - use the modern approach only
         if self.config.openai_api_key:
-            openai.api_key = self.config.openai_api_key
-            # Set the base URL if provided in config with validation
-            if self.config.openai_base_url:
-                # Validate base URL to prevent SSRF attacks
-                self._validate_and_set_base_url(self.config.openai_base_url, 'openai')
-                openai.base_url = self.config.openai_base_url
+            try:
+                from openai import AsyncOpenAI
+                # Create the client instance - avoid global modification
+                base_url = self.config.openai_base_url
+                if base_url:
+                    self._validate_and_set_base_url(base_url, 'openai')
+                self.openai_client = AsyncOpenAI(
+                    api_key=self.config.openai_api_key,
+                    base_url=base_url
+                )
+            except ImportError:
+                logger.warning("OpenAI library not installed")
+                self.openai_client = None
+            except Exception as e:
+                logger.warning(f"OpenAI client initialization failed: {type(e).__name__}")
+                self.openai_client = None
 
         # Setup Anthropic client if API key provided
-        self.anthropic_client = None
         if self.config.anthropic_api_key:
             try:
                 # Validate base URL if provided for Anthropic
@@ -43,6 +56,32 @@ class LLMProvider:
             except (ImportError, Exception) as e:
                 logger.warning(f"Anthropic client initialization failed: {type(e).__name__}")
                 self.anthropic_client = None
+
+        # Setup Mistral client if API key provided
+        self.mistral_client = None
+        if self.config.mistral_api_key:
+            try:
+                from mistralai.async_client import MistralAsyncClient
+                self.mistral_client = MistralAsyncClient(api_key=self.config.mistral_api_key)
+            except ImportError:
+                logger.warning("MistralAI library not installed")
+                self.mistral_client = None
+            except Exception as e:
+                logger.warning(f"Mistral client initialization failed: {type(e).__name__}")
+                self.mistral_client = None
+
+        # Setup Cohere client if API key provided
+        self.cohere_client = None
+        if self.config.cohere_api_key:
+            try:
+                import cohere
+                self.cohere_client = cohere.AsyncClient(self.config.cohere_api_key)
+            except ImportError:
+                logger.warning("Cohere library not installed")
+                self.cohere_client = None
+            except Exception as e:
+                logger.warning(f"Cohere client initialization failed: {type(e).__name__}")
+                self.cohere_client = None
 
     def _validate_and_set_base_url(self, base_url: str, provider_name: str) -> None:
         """Validate base URL to prevent SSRF vulnerabilities."""
@@ -74,21 +113,12 @@ class LLMProvider:
 
     async def _call_openai(self, prompt: str, model: str, **kwargs) -> str:
         """Call OpenAI with the given prompt."""
-        if not self.config.openai_api_key:
+        if not self.openai_client:
             # Return prompt as response if not configured - this allows testing without API keys
             return f"MOCK RESPONSE: {prompt[:200]}..."
 
         try:
-            # Use the newer AsyncOpenAI client instead of the old acreate method
-            from openai import AsyncOpenAI
-
-            # Create client with API key and base URL from config
-            client = AsyncOpenAI(
-                api_key=self.config.openai_api_key,
-                base_url=self.config.openai_base_url
-            )
-
-            response = await client.chat.completions.create(
+            response = await self.openai_client.chat.completions.create(
                 model=model,
                 messages=[
                     {"role": "user", "content": prompt}
@@ -103,7 +133,7 @@ class LLMProvider:
                 error_msg = error_msg.replace(self.config.openai_api_key, "[REDACTED_API_KEY]")
             logger.error(f"OpenAI API error: {error_msg}")
             # Return prompt as response to allow continued processing
-            return f"MOCK RESPONSE due to error: {prompt[:200]}..."
+            return f"MOCK RESPONSE due to error: {error_msg[:200]}..."
 
     async def _call_anthropic(self, prompt: str, model: str, **kwargs) -> str:
         """Call Anthropic with the given prompt."""
@@ -134,59 +164,53 @@ class LLMProvider:
         """Call Mistral with the given prompt."""
         # Placeholder for Mistral implementation
         # Requires: pip install mistralai
-        try:
-            from mistralai.async_client import MistralAsyncClient
-            from mistralai.models import ChatCompletionRequest
-
-            if self.config.mistral_api_key:
-                client = MistralAsyncClient(api_key=self.config.mistral_api_key)
-
-                response = await client.chat(
-                    model=model,
-                    messages=[
-                        {"role": "user", "content": prompt}
-                    ],
-                    **kwargs
-                )
-                return response.choices[0].message.content
-            else:
-                return f"MOCK MISTRAL RESPONSE: {prompt[:200]}..."
-        except ImportError:
-            logger.warning("MistralAI library not installed")
+        if not self.mistral_client:
+            # Return prompt as response if not configured - allows testing without API keys
             return f"MOCK MISTRAL RESPONSE: {prompt[:200]}..."
+
+        try:
+            response = await self.mistral_client.chat(
+                model=model,
+                messages=[
+                    {"role": "user", "content": prompt}
+                ],
+                **kwargs
+            )
+            # Return the content from the response (structure depends on actual Mistral library)
+            # The original code showed response.choices[0].message.content format
+            if hasattr(response, 'choices') and len(response.choices) > 0:
+                if hasattr(response.choices[0], 'message'):
+                    return response.choices[0].message.content
+            # If structure differs, return as string representation
+            return str(response)
         except Exception as e:
             # Sanitize error message to prevent API key exposure
             error_msg = str(e)
             if self.config.mistral_api_key:
                 error_msg = error_msg.replace(self.config.mistral_api_key, "[REDACTED_API_KEY]")
             logger.error(f"Mistral API error: {error_msg}")
-            return f"MOCK MISTRAL RESPONSE due to error: {prompt[:200]}..."
+            return f"MOCK MISTRAL RESPONSE due to error: {error_msg[:200]}..."
 
     async def _call_cohere(self, prompt: str, model: str, **kwargs) -> str:
         """Call Cohere with the given prompt."""
         # Placeholder for Cohere implementation
         # Requires: pip install cohere
-        try:
-            import cohere
-
-            if self.config.cohere_api_key:
-                client = cohere.AsyncClient(self.config.cohere_api_key)
-
-                response = await client.chat(
-                    message=prompt,
-                    model=model,
-                    **kwargs
-                )
-                return response.text
-            else:
-                return f"MOCK COHERE RESPONSE: {prompt[:200]}..."
-        except ImportError:
-            logger.warning("Cohere library not installed")
+        if not self.cohere_client:
+            # Return prompt as response if not configured - allows testing without API keys
             return f"MOCK COHERE RESPONSE: {prompt[:200]}..."
+
+        try:
+            response = await self.cohere_client.chat(
+                message=prompt,
+                model=model,
+                **kwargs
+            )
+            # Return the text from the response
+            return response.text
         except Exception as e:
             # Sanitize error message to prevent API key exposure
             error_msg = str(e)
             if self.config.cohere_api_key:
                 error_msg = error_msg.replace(self.config.cohere_api_key, "[REDACTED_API_KEY]")
             logger.error(f"Cohere API error: {error_msg}")
-            return f"MOCK COHERE RESPONSE due to error: {prompt[:200]}..."
+            return f"MOCK COHERE RESPONSE due to error: {error_msg[:200]}..."
