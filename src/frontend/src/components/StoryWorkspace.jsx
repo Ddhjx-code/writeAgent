@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import api from '../api/client';
 
 const StoryWorkspace = () => {
   const [story, setStory] = useState({
@@ -25,8 +26,11 @@ const StoryWorkspace = () => {
     activeAgents: 0,
     message: '就绪',
   });
+  const [storyId, setStoryId] = useState(null);
 
   const [feedback, setFeedback] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
   const handleStoryChange = (field, value) => {
     setStory(prev => ({ ...prev, [field]: value }));
@@ -43,15 +47,95 @@ const StoryWorkspace = () => {
     }
   };
 
-  const handleStartWriting = () => {
-    setAgentStatus({
-      isRunning: true,
-      activeAgents: 9,
-      message: 'AI代理商正在积极写作',
-    });
-    setStoryProgress(10);
+  // 创建故事
+  const handleCreateStory = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const config = {
+        title: story.title,
+        genre: story.genre,
+        description: story.description,
+        target_length: story.targetLength,
+        outline: story.outline,
+        chapters_count: story.chaptersCount,
+        pov_character: story.povCharacter,
+        characters: characters.map(char => ({
+          name: char.name,
+          role: char.role,
+          description: char.description
+        }))
+      };
+
+      const response = await api.createStory(config);
+      if (response.success) {
+        setStoryId(response.data.story_id);
+        setAgentStatus({
+          isRunning: false,
+          activeAgents: 0,
+          message: `故事创建成功: ${response.data.story_id}`
+        });
+        alert('故事创建成功！');
+      } else {
+        setError(response.error || '创建故事失败');
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
+  // 开始写作
+  const handleStartWriting = async () => {
+    if (!storyId) {
+      setError('请先创建故事');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+
+      const response = await api.startWriting(storyId);
+      if (response.success) {
+        setAgentStatus({
+          isRunning: true,
+          activeAgents: 9,
+          message: 'AI代理商正在积极写作',
+        });
+        setStoryProgress(10);
+      } else {
+        setError(response.error || '启动写作失败');
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 暂停写作
+  const handlePauseWriting = () => {
+    setAgentStatus(prev => ({
+      ...prev,
+      isRunning: false,
+      message: '写作已暂停'
+    }));
+  };
+
+  // 停止写作
+  const handleStopWriting = () => {
+    setAgentStatus({
+      isRunning: false,
+      activeAgents: 0,
+      message: '写作已停止'
+    });
+    setStoryProgress(0);
+  };
+
+  // 处理反馈
   const handleFeedback = () => {
     setAgentStatus({
       isRunning: true,
@@ -60,8 +144,23 @@ const StoryWorkspace = () => {
     });
   };
 
+  // 获取系统状态的模拟函数
+  const fetchSystemStatus = () => {
+    // 实际实现将从API获取状态
+  };
+
+  useEffect(() => {
+    // 加载系统状态
+    fetchSystemStatus();
+  }, []);
+
   return (
     <div className="story-workspace">
+      {error && (
+        <div className="error-message">
+          <p>错误: {error}</p>
+        </div>
+      )}
       <div className="story-workspace-content">
         <aside className="story-input-panel">
           <div className="input-section">
@@ -195,6 +294,19 @@ const StoryWorkspace = () => {
               ))}
             </div>
           )}
+
+          <div className="input-section">
+            <button
+              onClick={handleCreateStory}
+              className="primary-btn"
+              disabled={loading || !story.title}
+            >
+              {loading ? '创建中...' : '创建故事'}
+            </button>
+            {storyId && (
+              <p className="story-id-info">故事ID: {storyId}</p>
+            )}
+          </div>
         </aside>
 
         <main className="workspace-main">
@@ -231,12 +343,24 @@ const StoryWorkspace = () => {
                 <button
                   onClick={handleStartWriting}
                   className="primary-btn"
-                  disabled={agentStatus.isRunning}
+                  disabled={agentStatus.isRunning || !storyId}
                 >
                   开始写作
                 </button>
-                <button className="secondary-btn">暂停</button>
-                <button className="danger-btn">停止</button>
+                <button
+                  onClick={handlePauseWriting}
+                  className="secondary-btn"
+                  disabled={!agentStatus.isRunning}
+                >
+                  暂停
+                </button>
+                <button
+                  onClick={handleStopWriting}
+                  className="danger-btn"
+                  disabled={!agentStatus.isRunning}
+                >
+                  停止
+                </button>
               </div>
             </div>
           </div>

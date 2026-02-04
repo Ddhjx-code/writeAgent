@@ -55,3 +55,18 @@ class SystemStatus(BaseModel):
     current_story: Optional[str]
     knowledge_store_status: Optional[Dict[str, Any]]
     timestamp: str
+
+class AgentMessage(BaseModel):
+    agent_id: str
+    agent_name: str
+    message: str
+    timestamp: str
+    level: str = "info"  # info, warning, error
+
+class StoryProgress(BaseModel):
+    current_chapter: int
+    total_chapters: int
+    progress_percentage: float
+    status: str
+    current_phase: str
+    last_updated: str

@@ -20,8 +20,9 @@ from ..agents.dialogue_specialist import DialogueSpecialistAgent
 from ..agents.world_builder import WorldBuilderAgent
 from ..agents.pacing_advisor import PacingAdvisorAgent
 from ..agents.humanizer import HumanizerAgent
-# from ..interface.gradio_app import GradioInterface  # 已移除：旧的Gradio界面
-# 新架构：API接口由src/api/server.py处理，前端使用React
+# 已移除旧的Gradio界面依赖
+# 新架构：API接口由src/api/server.py处理
+from typing import Optional, Dict, Any
 
 
 class WritingEngine:
@@ -32,7 +33,9 @@ class WritingEngine:
         self.knowledge_store = KnowledgeStore(config)
         self.workflow = NovelWritingGraph(config)
         self.communication_manager = CommunicationManager(CommunicationProtocol.HYBRID, config)
-        self.interface = GradioInterface()
+        # 旧的Gradio界面已被移除 - 使用API接口
+        # 保留接口对象以维持代码兼容性
+        self.interface = None
 
         # Agents will be initialized after system starts
         self.planner_agent = None
@@ -85,8 +88,9 @@ class WritingEngine:
         # Initialize workflow
         await self.workflow.initialize()
 
-        # Initialize interface
-        await self.interface.initialize()
+        # Interface initialization now handled by API layer
+        # await self.interface.initialize()
+        pass
 
         self.system_state = "ready"
         logging.info("Writing engine initialized successfully.")
@@ -284,12 +288,13 @@ class WritingEngine:
             return None
 
     async def start_interface_server(self, share: bool = False):
-        """Start the Gradio interface server."""
+        """Start the interface server (now handled by API layer)."""
         if self.system_state != "ready":
             raise RuntimeError("Engine not ready. Call initialize() first.")
 
-        logging.info("Starting Gradio interface server...")
-        await self.interface.run_app(share=share)
+        logging.info("Interface server now handled by API layer. See: src/api/server.py")
+        # await self.interface.run_app(share=share)  # This is handled by the API layer
+        pass
 
     async def get_system_status(self) -> Dict[str, Any]:
         """Get the current status of the system."""
