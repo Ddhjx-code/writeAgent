@@ -1,6 +1,6 @@
 from typing import Dict, Any, List, Optional
 import gradio as gr
-from ..types import StoryState
+from ..novel_types import StoryState
 
 
 def create_story_input_section():

@@ -2,6 +2,8 @@
 __pycache__/
 *.py[cod]
 *$py.class
+*.pyc
+*.pyo
 
 # Distribution / packaging
 .Python
@@ -47,3 +49,24 @@ logs/
 # OS
 .DS_Store
 Thumbs.db
+
+# Test reports
+.reports/
+pytest_reports/
+coverage/
+htmlcov/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Virtual environment (alternative patterns)
+.venv/
+python_env/
+.env.bak
+
+# Local configuration
+.pytest_cache/
+.coverage

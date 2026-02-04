@@ -250,7 +250,7 @@ class WritingEngine:
 
             # Create GraphState with loaded data
             # Note: AgentResponse needs to be reconstructed from dict
-            from ..types import AgentResponse
+            from ..novel_types import AgentResponse
             agent_responses = [
                 AgentResponse(**resp) for resp in state_dict.get("agent_responses", [])
             ]
@@ -290,12 +290,16 @@ class WritingEngine:
         logging.info("Starting Gradio interface server...")
         await self.interface.run_app(share=share)
 
-    def get_system_status(self) -> Dict[str, Any]:
+    async def get_system_status(self) -> Dict[str, Any]:
         """Get the current status of the system."""
+        knowledge_status = None
+        if self.knowledge_store:
+            knowledge_status = await self.knowledge_store.get_backend_status()
+
         return {
             "engine_state": self.system_state,
             "is_running": self.is_running,
             "current_story": self.current_story.title if self.current_story else None,
-            "knowledge_store_status": asyncio.run(self.knowledge_store.get_backend_status()) if self.knowledge_store else None,
+            "knowledge_store_status": knowledge_status,
             "timestamp": datetime.now().isoformat()
         }

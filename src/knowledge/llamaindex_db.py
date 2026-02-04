@@ -1,7 +1,6 @@
 from typing import Any, Dict, List, Optional
 import asyncio
-from llama_index.core import VectorStoreIndex, SimpleDirectoryReader, StorageContext, load_index_from_storage
-from llama_index.core.node_parser import SimpleNodeParser
+from llama_index.core import VectorStoreIndex, StorageContext, load_index_from_storage
 from llama_index.core.retrievers import VectorIndexRetriever
 from llama_index.core.query_engine import RetrieverQueryEngine
 from llama_index.core import Document

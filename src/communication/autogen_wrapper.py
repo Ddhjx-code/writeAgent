@@ -1,5 +1,5 @@
 import logging
-from typing import Dict, Any, List, Optional, Callable
+from typing import Dict, Any, List, Optional
 from ..agents.base import BaseAgent
 from .message import AgentMessage, MessageType
 from ..config import Config

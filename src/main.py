@@ -64,7 +64,7 @@ async def main():
     await engine.initialize()
 
     logging.info("AI Collaborative Novel Writing System initialized!")
-    logging.info(f"System Status: {engine.get_system_status()}")
+    logging.info(f"System Status: {await engine.get_system_status()}")
 
     initial_state = None
 

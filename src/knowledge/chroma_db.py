@@ -2,7 +2,6 @@ from typing import Any, Dict, List, Optional
 import asyncio
 import chromadb
 from chromadb.config import Settings
-from chromadb.api.types import QueryResult
 from ..config import Config
 from ..novel_types import Chapter
 from .base import BaseKnowledgeBase

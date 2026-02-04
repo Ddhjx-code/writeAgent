@@ -4,7 +4,6 @@ import asyncio
 from typing import Optional, Dict, Any
 import urllib.parse
 import logging
-import openai
 import anthropic
 from ..config import Config
 

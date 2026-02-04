@@ -5,7 +5,7 @@ from ..config import Config
 from ..knowledge.store import KnowledgeStore
 from .state import GraphState
 from .nodes import NodeManager
-from .edges import CONDITIONAL_EDGES, DEFAULT_ROUTE
+from .edges import CONDITIONAL_EDGES
 from .phase_manager import HierarchicalPhaseManager
 
 

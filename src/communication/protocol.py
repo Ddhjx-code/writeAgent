@@ -1,5 +1,5 @@
 import logging
-from typing import Dict, Any, List, Optional, Callable
+from typing import Dict, Any, List, Optional
 from enum import Enum
 from ..novel_types import AgentResponse
 from .message import AgentMessage, MessageType
