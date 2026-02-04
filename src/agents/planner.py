@@ -30,33 +30,27 @@ class PlannerAgent(BaseAgent):
                 story_status=state.get('story_status', 'draft')
             )
 
-            # For now, simulate planning generation
-            # In a real implementation, this would call an LLM and include more detailed planning
-            planned_content = {
-                "current_chapter_outline": {
-                    "chapter_number": len(state.get('chapters', [])) + 1,
-                    "title": f"Chapter {len(state.get('chapters', [])) + 1}",
-                    "content_goals": [
-                        "Introduce main conflict",
-                        "Develop key relationships",
-                        "Advance overarching plot",
-                        "Establish character motivation"
-                    ],
-                    "key_scenes": [
-                        "Opening scene establishing setting and mood",
-                        "Character interaction revealing personality",
-                        "Inciting incident that drives chapter",
-                        "Closing that connects to wider story"
-                    ],
-                    "character_appearances": list(state.get('characters', {}).keys()) if state.get('characters') else [],
-                    "world_building_elements": state.get('world_details', {})
-                },
-                "overall_arc": {
-                    "current_progress": f"Chapter {len(state.get('chapters', [])) + 1}/{state.get('outline', {}).get('total_chapters', 10)}",
-                    "next_milestones": ["midpoint crisis", "pre-climax tension", "climax", "resolution"],
-                    "themes_to_develop": ["character growth", "central conflict", "world exploration"]
-                }
-            }
+            # Call the actual LLM with the formatted prompt
+            response_content = await self.llm.acall(formatted_prompt, self.config.default_planner_model)
+
+            # Parse the response to ensure it's valid JSON
+            try:
+                planned_content = json.loads(response_content)
+            except json.JSONDecodeError:
+                # If the response isn't valid JSON, try to extract JSON from markdown if present
+                import re
+                json_match = re.search(r'```(?:json)?\s*({.*?})\s*```', response_content, re.DOTALL)
+                if json_match:
+                    planned_content = json.loads(json_match.group(1))
+                else:
+                    # Fallback: return as text content
+                    return AgentResponse(
+                        agent_name=self.name,
+                        content=response_content,
+                        reasoning="Generated plan from LLM but could not parse as structured JSON",
+                        suggestions=[],
+                        status="success"
+                    )
 
             return AgentResponse(
                 agent_name=self.name,

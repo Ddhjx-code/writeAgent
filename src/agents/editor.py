@@ -1,5 +1,6 @@
 from typing import Dict, Any, List
 import json
+import re
 from ..novel_types import AgentResponse
 from ..config import Config
 from .base import BaseAgent
@@ -32,71 +33,52 @@ class EditorAgent(BaseAgent):
                 previous_edits=state.get('editor_notes', [])
             )
 
-            # For now, simulate editing of the content
-            # In a real implementation, this would analyze content for improvements
+            # Call the actual LLM with the formatted prompt
+            response_content = await self.llm.acall(formatted_prompt, self.config.default_editor_model)
 
-            # For demonstration, we'll return a basic review
-            edit_recommendations = {
-                "structural_feedback": {
-                    "pacing_issues": ["Consider breaking up long descriptive passage about setting"],
-                    "plot_advancement": "Chapter effectively advances plot with clear character goals",
-                    "character_development": "Shows good character motivation, could expand on internal conflict"
-                },
-                "style_feedback": {
-                    "sentence_variety": "Mixed sentence lengths, good rhythm in dialogue sections",
-                    "vocabulary": "Appropriate for genre, avoids repetitive word usage",
-                    "tone_consistency": "Maintains consistent narrative tone"
-                },
-                "continuity_check": {
-                    "character_appearances": "All relevant characters appear as expected",
-                    "world_building": "Consistent with established world details",
-                    "plot_threads": "Advances main plot thread, maintains subplots"
-                },
-                "suggested_revisions": [
-                    "Tighten the opening paragraph for better hook",
-                    "Clarify the protagonist's immediate goal mid-chapter",
-                    "Consider adding sensory details to the dialogue scene"
-                ],
-                "overall_score": 8.5,
-                "recommendations_summary": "Strong chapter that advances plot and character development, with minor improvements possible in pacing and paragraph structure."
-            }
+            # Parse the response to ensure it's valid JSON
+            try:
+                # Try to parse the response as JSON directly
+                edit_recommendations = json.loads(response_content)
+            except json.JSONDecodeError:
+                # If not valid JSON, look for JSON content in markdown blocks
+                json_match = re.search(r'```(?:json)?\s*({.*?})\s*```', response_content, re.DOTALL)
+                if json_match:
+                    try:
+                        edit_recommendations = json.loads(json_match.group(1))
+                    except json.JSONDecodeError:
+                        # If still not valid, return as content with error message
+                        return AgentResponse(
+                            agent_name=self.name,
+                            content=response_content,
+                            reasoning="Generated editor review but could not parse as structured JSON",
+                            suggestions=[],
+                            status="success"
+                        )
+                else:
+                    # If no JSON found, return as is
+                    return AgentResponse(
+                        agent_name=self.name,
+                        content=response_content,
+                        reasoning="Generated editor review but could not parse as structured JSON",
+                        suggestions=[],
+                        status="success"
+                    )
 
             return AgentResponse(
                 agent_name=self.name,
                 content=json.dumps(edit_recommendations, indent=2),
                 reasoning="Reviewed current chapter content according to writing standards for pacing, style, and narrative effectiveness",
-                suggestions=edit_recommendations["suggested_revisions"],
+                suggestions=edit_recommendations.get("suggested_revisions", []),
                 status="success"
             )
         except Exception as e:
-            # For tests to pass, return a successful response even on errors
-            edit_recommendations = {
-                "structural_feedback": {
-                    "pacing_issues": [],
-                    "plot_advancement": "Chapter review processed with potential errors",
-                    "character_development": "Basic review provided"
-                },
-                "style_feedback": {
-                    "sentence_variety": "Review processed",
-                    "vocabulary": "Review processed",
-                    "tone_consistency": "Review processed"
-                },
-                "continuity_check": {
-                    "character_appearances": "Review processed",
-                    "world_building": "Review processed",
-                    "plot_threads": "Review processed"
-                },
-                "suggested_revisions": ["Error occurred, returning default review"],
-                "overall_score": 6.0,
-                "recommendations_summary": f"Error in processing: {str(e)}"
-            }
-
             return AgentResponse(
                 agent_name=self.name,
-                content=json.dumps(edit_recommendations, indent=2),
-                reasoning=f"Error in EditorAgent processing: {str(e)}, providing basic review",
-                suggestions=edit_recommendations["suggested_revisions"],
-                status="success"
+                content="",
+                reasoning=f"Error in EditorAgent processing: {str(e)}",
+                suggestions=[],
+                status="failed"
             )
 
     def get_prompt(self) -> str:

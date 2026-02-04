@@ -36,19 +36,23 @@ class HumanizerAgent(BaseAgent):
                 original_content=content_to_humanize
             )
 
-            # For now, simulate humanizing the content by applying basic transformations
-            # In a real implementation, this would call an LLM with the Humanizer-zh.md instructions
+            # Call the actual LLM with the formatted prompt
+            response_content = await self.llm.acall(formatted_prompt, self.config.default_writer_model)
 
-            humanized_content = self._humanize_text(content_to_humanize)
+            # The response should be the humanized content
+            # We can apply basic checks to see if AI traces were removed
+            original_length = len(content_to_humanize)
+            humanized_length = len(response_content)
+            changes_summary = []
 
-            # Identify what changes were made
-            changes_summary = self._analyze_changes(content_to_humanize, humanized_content)
+            if original_length > humanized_length:
+                changes_summary.append("Reduced excessive content")
 
             return AgentResponse(
                 agent_name=self.name,
-                content=humanized_content,
-                reasoning="Applied humanization techniques to remove AI writing patterns and make text sound more natural",
-                suggestions=[f"Humanization applied: {', '.join(changes_summary)}" if changes_summary else "No specific AI patterns detected in content"],
+                content=response_content,
+                reasoning="Applied humanization techniques to remove AI writing patterns and make text sound more natural using LLM analysis",
+                suggestions=changes_summary + ["AI text humanization applied via LLM processing"],
                 status="success"
             )
         except Exception as e:

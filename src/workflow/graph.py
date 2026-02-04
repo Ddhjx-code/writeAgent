@@ -5,15 +5,17 @@ from ..knowledge.store import KnowledgeStore
 from .state import GraphState
 from .nodes import NodeManager
 from .edges import CONDITIONAL_EDGES, DEFAULT_ROUTE
+from .phase_manager import HierarchicalPhaseManager
 
 
 class NovelWritingGraph:
-    """Main LangGraph workflow for the AI collaborative novel writing system."""
+    """Main LangGraph workflow for the AI collaborative novel writing system with hierarchical phase support."""
 
     def __init__(self, config: Config):
         self.config = config
         self.knowledge_store = KnowledgeStore(config)
         self.node_manager = NodeManager(config, self.knowledge_store)
+        self.phase_manager = HierarchicalPhaseManager()
         self.workflow = None
 
     async def initialize(self):
@@ -35,11 +37,11 @@ class NovelWritingGraph:
         self.workflow.add_node("humanizer", self.node_manager.humanizer_node)
         self.workflow.add_node("human_review", self.node_manager.human_review_node)
 
-        # Set up the conditional edges
+        # Set up the conditional edges - now with hierarchical phase-aware routing
         for node_name, condition_func in CONDITIONAL_EDGES.items():
             self.workflow.add_conditional_edges(node_name, condition_func)
 
-        # Set up the entry point to start the workflow
+        # Set up the entry point to start the workflow - defaults to planner which will handle phase initialization
         self.workflow.set_entry_point("planner")
 
         # Compile the graph
@@ -57,13 +59,13 @@ class NovelWritingGraph:
             await self.initialize()
 
         if debug:
-            print("Starting novel writing workflow...")
+            print(f"Starting novel writing workflow in {initial_state.current_hierarchical_phase} phase...")
 
         # Run the graph with the initial state
         final_state = await self.compiled_graph.ainvoke(initial_state)
 
         if debug:
-            print(f"Workflow completed. Final state: {final_state.current_phase}")
+            print(f"Workflow completed. Final state: {final_state.current_phase}, Hierarchical Phase: {final_state.current_hierarchical_phase}")
 
         return final_state
 
@@ -109,9 +111,46 @@ class NovelWritingGraph:
             return output_path
         except Exception as e:
             print(f"Could not generate visualization: {e}")
+            # Return None to indicate failure
             return None
 
     async def reset_workflow(self):
         """Reset the workflow to its initial state."""
         self.compiled_graph = None
         await self.initialize()
+
+    async def run_with_phase_management(self, initial_state: GraphState, debug: bool = False) -> GraphState:
+        """Run workflow with explicit phase management for more control over hierarchical transitions."""
+        if not self.compiled_graph:
+            await self.initialize()
+
+        current_state = initial_state
+        max_iterations = initial_state.max_iterations
+
+        iteration_count = 0
+        while iteration_count < max_iterations and current_state.should_continue():
+            # Update phase progress
+            current_state = self.phase_manager.update_phase_progress(current_state)
+
+            # Check if we should transition to a different phase
+            should_transition = self.phase_manager.should_transition_to_phase(current_state, "macro")
+            if not should_transition:
+                should_transition = self.phase_manager.should_transition_to_phase(current_state, "mid") and current_state.current_hierarchical_phase != "macro"
+            if not should_transition:
+                should_transition = self.phase_manager.should_transition_to_phase(current_state, "micro") and current_state.current_hierarchical_phase in ["mid", "macro"]
+
+            if should_transition:
+                # Prepare for phase transition
+                target_phase = "macro" if self.phase_manager.should_transition_to_phase(current_state, "macro") else \
+                              "mid" if self.phase_manager.should_transition_to_phase(current_state, "mid") and current_state.current_hierarchical_phase != "macro" else \
+                              "micro"
+                current_state = self.phase_manager.prepare_phase_transition(current_state, target_phase)
+                if debug:
+                    print(f"Phase transition: {target_phase} at iteration {iteration_count}")
+
+            # Run a step of the workflow
+            current_state = await self.compiled_graph.ainvoke(current_state)
+
+            iteration_count += 1
+
+        return current_state

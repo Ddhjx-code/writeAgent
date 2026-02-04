@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from typing import Dict, Any, Optional
 from ..novel_types import AgentResponse, Message
 from ..config import Config
+from ..llm.providers import LLMProvider
 
 
 class BaseAgent(ABC):
@@ -11,6 +12,8 @@ class BaseAgent(ABC):
         self.name = name
         self.config = config
         self._validate_config()
+        # Initialize LLM provider
+        self.llm = LLMProvider(config)
 
     def _validate_config(self):
         """Validate that required configuration is present."""

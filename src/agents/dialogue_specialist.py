@@ -31,87 +31,60 @@ class DialogueSpecialistAgent(BaseAgent):
                 previous_dialogue_analysis=state.get('dialogue_notes', {})
             )
 
-            # For now, simulate dialogue analysis and feedback
-            # In a real implementation, this would parse dialogue content and analyze it
-            dialogue_analysis = {
-                "character_voice_consistency": {
-                    "distinctiveness_score": 8.5,
-                    "individual_voices": ["Character A has formal tone, Character B is casual"],
-                    "voice_consistency": "Voices remain distinct and consistent"
-                },
-                "dialogue_quality_metrics": {
-                    "naturalness_score": 7.8,
-                    "purposefulness": "Dialogue serves plot or character development goals",
-                    "balance": "Good mix of exposition, character development, and plot advancement",
-                    "authenticity": "Conversations feel genuine and purposeful"
-                },
-                "dialogue_technique_analysis": {
-                    "subtext_effectiveness": "Subtext properly conveys underlying emotions and conflicts",
-                    "dialogue_tags": "Dialogue tags varied appropriately, not overused",
-                    "attribution_consistency": "Speakers clearly identified, no attribution confusion"
-                },
-                "character_interaction_dynamics": {
-                    "relationship_progression": "Relationships show appropriate development through dialogue",
-                    "conflict_representation": "Conflicts portrayed through dialogue effectively",
-                    "emotional_arc": "Character emotions well-represented in conversations"
-                },
-                "improvement_suggestions": [
-                    "Consider adding more subtext to conversation on page 3",
-                    "Some dialogue tags could be reduced for better flow",
-                    "Character A's speech could be more distinctive in tense scenes"
-                ],
-                "style_consistency": {
-                    "vocabulary_choices": "Vocabulary appropriate for characters and setting",
-                    "conversational_styles": "Different characters have identifiable speaking patterns",
-                    "formality_levels": "Appropriate for character status and scene tone"
-                }
-            }
+            # Call the actual LLM with the formatted prompt
+            response_content = await self.llm.acall(formatted_prompt, self.config.default_editor_model or self.config.default_writer_model)
+
+            # Parse the response to ensure it's valid JSON
+            try:
+                # Try to parse the response as JSON directly
+                dialogue_analysis = json.loads(response_content)
+            except json.JSONDecodeError:
+                # If not valid JSON, look for JSON content in markdown blocks
+                import re
+                json_match = re.search(r'```(?:json)?\s*({.*?})\s*```', response_content, re.DOTALL)
+                if json_match:
+                    try:
+                        dialogue_analysis = json.loads(json_match.group(1))
+                    except json.JSONDecodeError:
+                        # If still not valid, return content with error message
+                        return AgentResponse(
+                            agent_name=self.name,
+                            content=response_content,
+                            reasoning="Generated dialogue analysis but could not parse as structured JSON",
+                            suggestions=[],
+                            status="success"
+                        )
+                else:
+                    # If no JSON found, extract suggestions from response
+                    import re
+                    # Extract potential improvement suggestions from the response text
+                    suggestion_pattern = r'(?:suggestions?:|improvements?:|recommendations:)\s*(.*?)(?:\n\n|\n[A-Z][a-z]+:|$)'
+                    match = re.search(suggestion_pattern, response_content, re.IGNORECASE | re.DOTALL)
+                    suggestions = []
+                    if match:
+                        suggestions_text = match.group(1).strip()
+                        # Try to split into individual suggestions
+                        suggestions = [s.strip() for s in suggestions_text.split('\n') if s.strip().startswith(('-', '*', '•'))]
+                        if not suggestions:
+                            suggestions = [suggestions_text[:200]]  # Use first 200 chars as a suggestion if no bullets found
+
+                    dialogue_analysis = {
+                        "improvement_suggestions": suggestions
+                    }
 
             return AgentResponse(
                 agent_name=self.name,
                 content=json.dumps(dialogue_analysis, indent=2),
-                reasoning="Analyzed dialogue patterns, character voices, and interaction quality in current chapter",
-                suggestions=dialogue_analysis["improvement_suggestions"],
+                reasoning="Analyzed dialogue patterns, character voices, and interaction quality using LLM analysis",
+                suggestions=dialogue_analysis.get("improvement_suggestions", []),
                 status="success"
             )
         except Exception as e:
-            # For tests to pass, return a successful response even on errors
-            dialogue_analysis = {
-                "character_voice_consistency": {
-                    "distinctiveness_score": 6.0,
-                    "individual_voices": ["Basic analysis performed"],
-                    "voice_consistency": "Analysis completed"
-                },
-                "dialogue_quality_metrics": {
-                    "naturalness_score": 6.0,
-                    "purposefulness": "Basic analysis completed",
-                    "balance": "Basic analysis completed",
-                    "authenticity": "Basic analysis completed"
-                },
-                "dialogue_technique_analysis": {
-                    "subtext_effectiveness": "Basic analysis completed",
-                    "dialogue_tags": "Basic analysis completed",
-                    "attribution_consistency": "Basic analysis completed"
-                },
-                "character_interaction_dynamics": {
-                    "relationship_progression": "Basic analysis completed",
-                    "conflict_representation": "Basic analysis completed",
-                    "emotional_arc": "Basic analysis completed"
-                },
-                "improvement_suggestions": ["Error occurred, providing basic dialogue review"],
-                "style_consistency": {
-                    "vocabulary_choices": "Basic analysis completed",
-                    "conversational_styles": "Basic analysis completed",
-                    "formality_levels": "Basic analysis completed"
-                }
-            }
-
             return AgentResponse(
                 agent_name=self.name,
-                content=json.dumps(dialogue_analysis, indent=2),
-                reasoning=f"Error in DialogueSpecialistAgent processing: {str(e)}, providing basic review",
-                suggestions=dialogue_analysis["improvement_suggestions"],
-                status="success"
+                content="",
+                reasoning=f"Error in DialogueSpecialistAgent processing: {str(e)}",
+                status="failed"
             )
 
     def get_prompt(self) -> str:

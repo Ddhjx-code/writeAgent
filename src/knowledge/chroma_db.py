@@ -6,6 +6,7 @@ from chromadb.api.types import QueryResult
 from ..config import Config
 from ..novel_types import Chapter
 from .base import BaseKnowledgeBase
+from ..llm.embeddings import OllamaEmbeddingProvider
 
 
 class ChromaDBKnowledge(BaseKnowledgeBase):
@@ -20,6 +21,7 @@ class ChromaDBKnowledge(BaseKnowledgeBase):
             is_persistent=True
         )
         self.collection_name = "novel_writing_kb"
+        self.embedding_provider = OllamaEmbeddingProvider(config)
 
     async def initialize(self):
         """Initialize the ChromaDB knowledge base with persistent storage."""
@@ -70,13 +72,25 @@ class ChromaDBKnowledge(BaseKnowledgeBase):
             return []
 
     async def search(self, query: str, top_k: int = 5) -> List[Dict[str, Any]]:
-        """Search for relevant information in the ChromaDB knowledge base."""
+        """Search for relevant information in the ChromaDB knowledge base using Ollama embeddings."""
         try:
-            result = self.collection.query(
-                query_texts=[query],
-                n_results=top_k,
-                include=['documents', 'metadatas', 'distances']
-            )
+            # First, try to generate embedding for the query using Ollama
+            query_embedding = self.embedding_provider.embed_query(query)
+
+            if query_embedding:
+                # If we successfully generated an embedding, use it for search
+                result = self.collection.query(
+                    query_embeddings=[query_embedding],
+                    n_results=top_k,
+                    include=['documents', 'metadatas', 'distances']
+                )
+            else:
+                # If embedding generation failed, fall back to text-based search
+                result = self.collection.query(
+                    query_texts=[query],
+                    n_results=top_k,
+                    include=['documents', 'metadatas', 'distances']
+                )
 
             formatted_results = []
             if result['documents'] and len(result['documents']) > 0:

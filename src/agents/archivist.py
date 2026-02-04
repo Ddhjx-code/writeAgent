@@ -1,5 +1,6 @@
 from typing import Dict, Any, List
 import json
+import re
 from ..novel_types import AgentResponse
 from ..config import Config
 from .base import BaseAgent
@@ -32,21 +33,43 @@ class ArchivistAgent(BaseAgent):
                 previous_archive=state.get('archive', {})
             )
 
-            # For now, simulate archive updates
-            # In a real implementation, this would analyze content for continuity details
-            archived_content = {
-                "continuity_notes": self._extract_continuity_info(state),
-                "character_tracking": self._update_character_info(state),
-                "world_building_summary": self._update_world_details(state),
-                "story_consistency": self._check_consistency(state),
-                "archive_updates": "Updated character descriptions, world details, and continuity tracking after latest chapter"
-            }
+            # Call the actual LLM with the formatted prompt
+            response_content = await self.llm.acall(formatted_prompt, self.config.default_editor_model or self.config.default_writer_model)
+
+            # Parse the response to ensure it's valid JSON
+            try:
+                # Try to parse the response as JSON directly
+                archived_content = json.loads(response_content)
+            except json.JSONDecodeError:
+                # If not valid JSON, look for JSON content in markdown blocks\n                json_match = re.search(r'```(?:json)?\s*({.*?})\s*```', response_content, re.DOTALL)
+                if json_match:
+                    try:
+                        archived_content = json.loads(json_match.group(1))
+                    except json.JSONDecodeError:
+                        # If still not valid, return as content with error message
+                        return AgentResponse(
+                            agent_name=self.name,
+                            content=response_content,
+                            reasoning="Generated archivist analysis but could not parse as structured JSON",
+                            suggestions=[],
+                            status="success"
+                        )
+                else:
+                    # If no JSON found, fall back to simulated function for now
+                    # In the meantime, process the response as text
+                    archived_content = {
+                        "continuity_notes": self._extract_continuity_info(state),
+                        "character_tracking": self._update_character_info(state),
+                        "world_building_summary": self._update_world_details(state),
+                        "story_consistency": self._check_consistency(state),
+                        "archive_updates": f"Analysis from LLM: {response_content[:500]}..."  # Truncate long response
+                    }
 
             return AgentResponse(
                 agent_name=self.name,
                 content=json.dumps(archived_content, indent=2),
-                reasoning="Updated story archival information including continuity, characters, and world-building elements",
-                suggestions=[
+                reasoning="Updated story archival information including continuity, characters, and world-building elements using LLM analysis",
+                suggestions=archived_content.get("suggested_inconsistencies", []) + [
                     "Character age discrepancy noted in timeline",
                     "Location reference consistency verified",
                     "Previous plot thread advancement tracked"

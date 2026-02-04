@@ -31,21 +31,12 @@ class WriterAgent(BaseAgent):
                 previous_content=state.get('chapters', [])[-1]['content'] if state.get('chapters') else ''
             )
 
-            # For now, simulate content generation
-            # In a real implementation, this would call an LLM
-            simulated_content = f"""
-            Chapter Content:
-
-            The morning sun cast long shadows across the landscape as our protagonist began their journey. The world was vast and full of possibilities, each decision leading down a different path of discovery.
-
-            The characters, each with their own distinct personality and motivations, moved through the vividly described world, interacting with the environment and each other in ways that revealed their inner thoughts and relationships.
-
-            As the narrative progressed, the plot thickened, revealing clues and hints about the larger story while advancing the immediate goals of the characters and the overarching themes of the tale.
-            """
+            # Call the actual LLM with the formatted prompt
+            response_content = await self.llm.acall(formatted_prompt, self.config.default_writer_model)
 
             return AgentResponse(
                 agent_name=self.name,
-                content=simulated_content,
+                content=response_content,
                 reasoning="Generated narrative content based on story context, outline, character relationships, and world-building elements",
                 suggestions=[
                     "Consider adjusting tone for more dramatic effect",

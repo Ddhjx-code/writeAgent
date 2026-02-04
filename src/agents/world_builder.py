@@ -33,84 +33,60 @@ class WorldBuilderAgent(BaseAgent):
                 setting_requirements=state.get('outline', {}).get('setting', {})
             )
 
-            # For now, simulate world building analysis and development
-            # In a real implementation, this would analyze content for world-building opportunities
-            world_building_report = {
-                "geographic_expansion": {
-                    "new_locations_introduced": ["Eastern forest near the mountain range", "Marketplace in outer district"],
-                    "location_details_enhanced": ["Main city has expanded description of cultural quarter"],
-                    "map_consistency": "New locations fit with existing geography",
-                    "exploration_opportunities": ["Caves beneath eastern forest", "Old ruins to the north"]
-                },
-                "cultural_development": {
-                    "new_cultural_elements": ["Festival of Changing Seasons", "Custom of leaving flowers at memorials"],
-                    "cultural_detail_enhanced": ["Expanded on religious ceremonies in central plaza"],
-                    "tradition_integration": "New traditions blend well with established culture"
-                },
-                "world_systems_integrity": {
-                    "magic_system_updates": self._check_magic_systems(state),
-                    "political_system_updates": self._check_political_updates(state),
-                    "economic_system_updates": self._check_economic_details(state),
-                    "social_structure_updates": self._check_social_details(state)
-                },
-                "consistency_verification": {
-                    "new_elements_consistent": "New world elements align with established rules",
-                    "contradiction_check": "No contradictions with previously established world facts",
-                    "integration_quality": "New elements integrate smoothly"
-                },
-                "world_building_recommendations": [
-                    "Consider expanding magical training system introduced in this chapter",
-                    "More historical context could strengthen the ancient ruins element",
-                    "Political tensions should be further developed for plot relevance"
-                ],
-                "expansion_opportunities": [
-                    "The mystical creatures mentioned could be expanded into their own cultural group",
-                    "The historical time period could be developed as a unique world element"
-                ]
-            }
+            # Call the actual LLM with the formatted prompt
+            response_content = await self.llm.acall(formatted_prompt, self.config.default_planner_model or self.config.default_writer_model)
+
+            # Parse the response to ensure it's valid JSON
+            try:
+                # Try to parse the response as JSON directly
+                world_building_report = json.loads(response_content)
+            except json.JSONDecodeError:
+                # If not valid JSON, look for JSON content in markdown blocks
+                import re
+                json_match = re.search(r'```(?:json)?\s*({.*?})\s*```', response_content, re.DOTALL)
+                if json_match:
+                    try:
+                        world_building_report = json.loads(json_match.group(1))
+                    except json.JSONDecodeError:
+                        # If still not valid, return content with error message
+                        return AgentResponse(
+                            agent_name=self.name,
+                            content=response_content,
+                            reasoning="Generated world building analysis but could not parse as structured JSON",
+                            suggestions=[],
+                            status="success"
+                        )
+                else:
+                    # If no JSON found, extract recommendations from the response text
+                    import re
+                    # Extract potential recommendations from the response text
+                    recommendation_pattern = r'(?:recommendations?:|suggestions?:)\s*(.*?)(?:\n\n|\n[A-Z][a-z]+:|$)'
+                    match = re.search(recommendation_pattern, response_content, re.IGNORECASE | re.DOTALL)
+                    recommendations = []
+                    if match:
+                        recommendations_text = match.group(1).strip()
+                        # Try to split into individual recommendations
+                        recommendations = [s.strip() for s in recommendations_text.split('\n') if s.strip().startswith(('-', '*', '•'))]
+                        if not recommendations:
+                            recommendations = [recommendations_text[:200]]  # Use first 200 chars as a recommendation if no bullets found
+
+                    world_building_report = {
+                        "world_building_recommendations": recommendations
+                    }
 
             return AgentResponse(
                 agent_name=self.name,
                 content=json.dumps(world_building_report, indent=2),
-                reasoning="Analyzed current chapter to expand world elements while maintaining consistency with established setting",
-                suggestions=world_building_report["world_building_recommendations"],
+                reasoning="Analyzed current chapter to expand world elements using LLM analysis while maintaining consistency with established setting",
+                suggestions=world_building_report.get("world_building_recommendations", []),
                 status="success"
             )
         except Exception as e:
-            # For tests to pass, return a successful response even on errors
-            world_building_report = {
-                "geographic_expansion": {
-                    "new_locations_introduced": [],
-                    "location_details_enhanced": ["Basic world building performed"],
-                    "map_consistency": "Basic analysis",
-                    "exploration_opportunities": []
-                },
-                "cultural_development": {
-                    "new_cultural_elements": [],
-                    "cultural_detail_enhanced": ["Basic analysis performed"],
-                    "tradition_integration": "Basic analysis"
-                },
-                "world_systems_integrity": {
-                    "magic_system_updates": [],
-                    "political_system_updates": [],
-                    "economic_system_updates": [],
-                    "social_structure_updates": []
-                },
-                "consistency_verification": {
-                    "new_elements_consistent": "Basic analysis",
-                    "contradiction_check": "Basic check performed",
-                    "integration_quality": "Basic analysis"
-                },
-                "world_building_recommendations": ["Error occurred, providing basic world building review"],
-                "expansion_opportunities": ["Error occurred, basic options provided"]
-            }
-
             return AgentResponse(
                 agent_name=self.name,
-                content=json.dumps(world_building_report, indent=2),
-                reasoning=f"Error in WorldBuilderAgent processing: {str(e)}, providing basic review",
-                suggestions=world_building_report["world_building_recommendations"],
-                status="success"
+                content="",
+                reasoning=f"Error in WorldBuilderAgent processing: {str(e)}",
+                status="failed"
             )
 
     def _check_magic_systems(self, state: Dict[str, Any]) -> List[str]:

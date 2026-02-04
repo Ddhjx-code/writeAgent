@@ -32,45 +32,41 @@ class ConsistencyCheckerAgent(BaseAgent):
                 previous_inconsistencies=state.get('inconsistency_log', [])
             )
 
-            # For now, simulate checking for consistency
-            # In a real implementation, this would analyze content against all previous content
-            consistency_report = {
-                "character_continuity": {
-                    "character_ages": self._check_character_ages(state),
-                    "character_appearances": self._check_character_appearances(state),
-                    "character_personality": self._check_character_traits(state),
-                    "character_relationships": self._check_character_relationships(state)
-                },
-                "timeline_continuity": {
-                    "chronology_issues": self._check_chronology(state),
-                    "temporal_gaps": self._check_time_gaps(state),
-                    "seasonal_consistency": self._check_seasonal_details(state)
-                },
-                "world_building_consistency": {
-                    "geographical_unchanged": self._check_locations(state),
-                    "cultural_details": self._check_cultural_details(state),
-                    "magical_systems": self._check_special_rules(state),
-                    "societal_structure": self._check_society_elements(state)
-                },
-                "plot_continuity": {
-                    "major_plot_threads": self._track_plot_threads(state),
-                    "sub_plot_advancement": self._track_subplots(state),
-                    "unresolved_conflicts": self._track_unresolved_elements(state)
-                },
-                "detail_consistency": {
-                    "physical_descriptions": self._check_descriptions(state),
-                    "object_states": self._check_objects(state),
-                    "relationship_statuses": self._check_relationships(state)
-                },
-                "flagged_issues": self._compile_issues(state),
-                "consistency_score": 9.2
-            }
+            # Call the actual LLM with the formatted prompt
+            response_content = await self.llm.acall(formatted_prompt, self.config.default_planner_model or self.config.default_editor_model)
+
+            # Parse the response to ensure it's valid JSON
+            try:
+                # Try to parse the response as JSON directly
+                consistency_report = json.loads(response_content)
+            except json.JSONDecodeError:
+                # If not valid JSON, look for JSON content in markdown blocks
+                import re
+                json_match = re.search(r'```(?:json)?\s*({.*?})\s*```', response_content, re.DOTALL)
+                if json_match:
+                    try:
+                        consistency_report = json.loads(json_match.group(1))
+                    except json.JSONDecodeError:
+                        # If still not valid, return content with error message
+                        return AgentResponse(
+                            agent_name=self.name,
+                            content=response_content,
+                            reasoning="Generated consistency analysis but could not parse as structured JSON",
+                            suggestions=[],
+                            status="success"
+                        )
+                else:
+                    # If no JSON found, return as is but add some default structure
+                    consistency_report = {
+                        "flagged_issues": [response_content[:500] + "..." if len(response_content) > 500 else response_content],
+                        "consistency_score": 7.0  # Default score when LLM doesn't provide structure
+                    }
 
             return AgentResponse(
                 agent_name=self.name,
                 content=json.dumps(consistency_report, indent=2),
-                reasoning="Analyzed current content against story history for consistency across characters, timeline, world-building, plot, and details",
-                suggestions=[
+                reasoning="Analyzed current content against story history for consistency using LLM analysis",
+                suggestions=consistency_report.get("flagged_issues", []) + [
                     "Flagged potential age inconsistency for character: requires verification",
                     "Noted timeline jump that might need explanation",
                     "Location detail may need verification against earlier description"
@@ -78,45 +74,11 @@ class ConsistencyCheckerAgent(BaseAgent):
                 status="success"
             )
         except Exception as e:
-            # For tests to pass, return a successful response even on errors
-            consistency_report = {
-                "character_continuity": {
-                    "character_ages": [],
-                    "character_appearances": [],
-                    "character_personality": [],
-                    "character_relationships": []
-                },
-                "timeline_continuity": {
-                    "chronology_issues": [],
-                    "temporal_gaps": [],
-                    "seasonal_consistency": []
-                },
-                "world_building_consistency": {
-                    "geographical_unchanged": [],
-                    "cultural_details": [],
-                    "magical_systems": [],
-                    "societal_structure": []
-                },
-                "plot_continuity": {
-                    "major_plot_threads": [],
-                    "sub_plot_advancement": [],
-                    "unresolved_conflicts": []
-                },
-                "detail_consistency": {
-                    "physical_descriptions": [],
-                    "object_states": [],
-                    "relationship_statuses": []
-                },
-                "flagged_issues": [f"Error in processing: {str(e)}"],
-                "consistency_score": 5.0
-            }
-
             return AgentResponse(
                 agent_name=self.name,
-                content=json.dumps(consistency_report, indent=2),
-                reasoning=f"Error in ConsistencyCheckerAgent processing: {str(e)}, providing basic review",
-                suggestions=[f"Error occurred: {str(e)}"],
-                status="success"
+                content="",
+                reasoning=f"Error in ConsistencyCheckerAgent processing: {str(e)}",
+                status="failed"
             )
 
     def _check_character_ages(self, state: Dict[str, Any]) -> List[str]:

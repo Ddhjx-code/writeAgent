@@ -34,92 +34,60 @@ class PacingAdvisorAgent(BaseAgent):
                 overall_story_arc=state.get('outline', {}).get('arc', {})
             )
 
-            # For now, simulate pacing analysis
-            # In a real implementation, this would analyze content for pacing elements
-            pacing_analysis = {
-                "rhythm_assessment": {
-                    "sentence_length_variety": "Good variation, longer when describing scenes, shorter during action",
-                    "paragraph_structure": "Well balanced with varied lengths and purposes",
-                    "scene_vs_detailed_balance": "Appropriate balance of action, dialogue, and description",
-                    "rhythm_score": 8.0
-                },
-                "tension_analysis": {
-                    "current_tension_level": "Moderate to high",
-                    "tension_building_mechanisms": ["Character conflict", "Uncertainty about outcome"],
-                    "crescendo_effectiveness": "Builds appropriately with minor peaks before main climax",
-                    "tension_consistency": "Maintains appropriate tension for genre"
-                },
-                "narrative_flow": {
-                    "transition_smoothness": "Well-connected scene transitions",
-                    "content_pacing": "Appropriate for chapter length and plot advancement",
-                    "reader_engagement": "Maintains sufficient engagement",
-                    "flow_score": 8.5
-                },
-                "structural_pacing": {
-                    "chapter_beginning": "Strong hook to pull reader in",
-                    "mid_section_movement": "Maintains momentum without dragging",
-                    "ending_satisfaction": "Resolves chapter elements while creating forward momentum"
-                },
-                "pacing_recommendations": [
-                    "Consider breaking up longer descriptive passage near midpoint",
-                    "The dialogue near the end builds tension effectively, maintain this energy pattern",
-                    "Introduce a slight pause or change in rhythm before the major revelation",
-                    "Perhaps slow down character reaction moment for more emotional impact"
-                ],
-                "comparison_to_genre_standards": {
-                    "pace_relative_to_genre": "Appropriate for genre conventions",
-                    "tension_distribution": "Follows expected tension curve",
-                    "engagement_patterns": "Matches known engagement practices for genre"
-                }
-            }
+            # Call the actual LLM with the formatted prompt
+            response_content = await self.llm.acall(formatted_prompt, self.config.default_editor_model or self.config.default_writer_model)
+
+            # Parse the response to ensure it's valid JSON
+            try:
+                # Try to parse the response as JSON directly
+                pacing_analysis = json.loads(response_content)
+            except json.JSONDecodeError:
+                # If not valid JSON, look for JSON content in markdown blocks
+                import re
+                json_match = re.search(r'```(?:json)?\s*({.*?})\s*```', response_content, re.DOTALL)
+                if json_match:
+                    try:
+                        pacing_analysis = json.loads(json_match.group(1))
+                    except json.JSONDecodeError:
+                        # If still not valid, return content with error message
+                        return AgentResponse(
+                            agent_name=self.name,
+                            content=response_content,
+                            reasoning="Generated pacing analysis but could not parse as structured JSON",
+                            suggestions=[],
+                            status="success"
+                        )
+                else:
+                    # If no JSON found, extract recommendations from the response text
+                    import re
+                    # Extract potential recommendations from the response text
+                    recommendation_pattern = r'(?:recommendations?:|suggestions?:|improvements?:)\s*(.*?)(?:\n\n|\n[A-Z][a-z]+:|$)'
+                    match = re.search(recommendation_pattern, response_content, re.IGNORECASE | re.DOTALL)
+                    recommendations = []
+                    if match:
+                        recommendations_text = match.group(1).strip()
+                        # Try to split into individual recommendations
+                        recommendations = [s.strip() for s in recommendations_text.split('\n') if s.strip().startswith(('-', '*', '•'))]
+                        if not recommendations:
+                            recommendations = [recommendations_text[:200]]  # Use first 200 chars as a recommendation if no bullets found
+
+                    pacing_analysis = {
+                        "pacing_recommendations": recommendations
+                    }
 
             return AgentResponse(
                 agent_name=self.name,
                 content=json.dumps(pacing_analysis, indent=2),
-                reasoning="Analyzed narrative rhythm, tension levels, and story flow to ensure optimal pacing for reader engagement",
-                suggestions=pacing_analysis["pacing_recommendations"],
+                reasoning="Analyzed narrative rhythm, tension levels, and story flow using LLM analysis to ensure optimal pacing for reader engagement",
+                suggestions=pacing_analysis.get("pacing_recommendations", []),
                 status="success"
             )
         except Exception as e:
-            # For tests to pass, return a successful response even on errors
-            pacing_analysis = {
-                "rhythm_assessment": {
-                    "sentence_length_variety": "Basic analysis performed",
-                    "paragraph_structure": "Basic analysis performed",
-                    "scene_vs_detailed_balance": "Basic analysis performed",
-                    "rhythm_score": 6.0
-                },
-                "tension_analysis": {
-                    "current_tension_level": "Basic analysis",
-                    "tension_building_mechanisms": ["Basic analysis performed"],
-                    "crescendo_effectiveness": "Basic analysis performed",
-                    "tension_consistency": "Basic analysis performed"
-                },
-                "narrative_flow": {
-                    "transition_smoothness": "Basic analysis performed",
-                    "content_pacing": "Basic analysis performed",
-                    "reader_engagement": "Basic analysis performed",
-                    "flow_score": 6.0
-                },
-                "structural_pacing": {
-                    "chapter_beginning": "Basic analysis performed",
-                    "mid_section_movement": "Basic analysis performed",
-                    "ending_satisfaction": "Basic analysis performed"
-                },
-                "pacing_recommendations": ["Error occurred, providing basic pacing review"],
-                "comparison_to_genre_standards": {
-                    "pace_relative_to_genre": "Basic analysis performed",
-                    "tension_distribution": "Basic analysis performed",
-                    "engagement_patterns": "Basic analysis performed"
-                }
-            }
-
             return AgentResponse(
                 agent_name=self.name,
-                content=json.dumps(pacing_analysis, indent=2),
-                reasoning=f"Error in PacingAdvisorAgent processing: {str(e)}, providing basic review",
-                suggestions=pacing_analysis["pacing_recommendations"],
-                status="success"
+                content="",
+                reasoning=f"Error in PacingAdvisorAgent processing: {str(e)}",
+                status="failed"
             )
 
     def get_prompt(self) -> str:

@@ -1,5 +1,5 @@
 from typing import Dict, Any, List, Optional, Literal
-from pydantic import BaseModel
+from pydantic import BaseModel, validator
 from ..novel_types import StoryState, AgentResponse
 import json
 
@@ -32,6 +32,20 @@ class GraphState(BaseModel):
     error_count: int = 0
     last_error: Optional[str] = None
 
+    # Hierarchical workflow tracking (NEW FIELDS)
+    current_hierarchical_phase: Literal["macro", "mid", "micro"] = "macro"
+    macro_progress: float = 0.0  # Progress in macro phase (0.0-1.0)
+    mid_progress: float = 0.0    # Progress in mid phase (0.0-1.0)
+    micro_progress: float = 0.0  # Progress in micro phase (0.0-1.0)
+    macro_phase_data: Dict[str, Any] = {}  # State data specific to macro phase
+    mid_phase_data: Dict[str, Any] = {}    # State data specific to mid phase
+    micro_phase_data: Dict[str, Any] = {}  # State data specific to micro phase
+    target_macro_completion: int = 1       # Number of major story sections to complete
+    target_mid_completion: int = 10        # Number of chapters/chapter sections to complete
+    macro_completion_criteria: Dict[str, Any] = {}  # Criteria to complete macro phase
+    mid_completion_criteria: Dict[str, Any] = {}    # Criteria to complete mid phase
+    micro_completion_criteria: Dict[str, Any] = {}  # Criteria to complete micro phase
+
     # Human feedback integration
     human_feedback: List[Dict[str, Any]] = []
     needs_human_review: bool = False
@@ -45,6 +59,13 @@ class GraphState(BaseModel):
     # Agent-specific information
     current_agent_output: Optional[str] = None
     agent_execution_log: List[Dict[str, Any]] = []
+
+    @validator('macro_progress', 'mid_progress', 'micro_progress')
+    def validate_progress(cls, v):
+        """Validate that progress values are between 0.0 and 1.0"""
+        if not 0.0 <= v <= 1.0:
+            raise ValueError('Progress must be between 0.0 and 1.0')
+        return v
 
     def get_agent_context(self) -> Dict[str, Any]:
         """Return the current context for agents to work with."""
@@ -121,8 +142,75 @@ class GraphState(BaseModel):
     def should_continue(self) -> bool:
         """Determine if the workflow should continue iterating."""
         # Continue unless we exceed max iterations, complete the story, or have too many errors
-        return (
+        base_continuation = (
             self.iteration_count < self.max_iterations and
             self.story_status != "complete" and
             self.error_count < 5  # Stop after 5 errors
         )
+
+        # If base conditions are not met, don't continue
+        if not base_continuation:
+            return False
+
+        # Check hierarchical phase-specific continuation criteria
+        if self.current_hierarchical_phase == "macro":
+            # Return True if we've met the macro completion criteria or if it's not set
+            macro_complete = len(self.macro_completion_criteria) == 0
+            return not macro_complete
+        elif self.current_hierarchical_phase == "mid":
+            # Return True if we've met the mid completion criteria or if it's not set
+            mid_complete = len(self.mid_completion_criteria) == 0 or self.mid_progress >= 1.0
+            return not mid_complete
+        else:  # micro
+            # Return True if we've met the micro completion criteria or if it's not set
+            micro_complete = len(self.micro_completion_criteria) == 0 or self.micro_progress >= 1.0
+            return not micro_complete
+
+    def can_transition_to_phase(self, target_phase: Literal["macro", "mid", "micro"]) -> bool:
+        """Check if a transition to the target hierarchical phase is allowed."""
+        current = self.current_hierarchical_phase
+
+        if target_phase == current:
+            return True  # Already in the target phase
+
+        # Define hierarchical phase transition rules
+        # Allowed transitions: macro -> mid, mid -> macro, mid -> micro, micro -> mid
+        allowed_transitions = {
+            "macro": ["mid"],
+            "mid": ["macro", "micro"],
+            "micro": ["mid"]
+        }
+
+        return target_phase in allowed_transitions.get(current, [])
+
+    def should_transition_to_phase(self, target_phase: Literal["macro", "mid", "micro"]) -> bool:
+        """Determine if the workflow should transition to a different hierarchical phase."""
+        if not self.can_transition_to_phase(target_phase):
+            return False
+
+        # Define conditions that might trigger a phase transition
+        if target_phase == "macro":
+            # Return to macro when story structure needs re-planning
+            needs_replan = (not self.outline or
+                          self.story_status in ["replan", "restart"] or
+                          len(self.chapters) >= self.target_mid_completion)
+            return needs_replan
+
+        elif target_phase == "mid":
+            # Transition back from macro once initial outline is created
+            macro_done = ("story_outline" in self.macro_phase_data and
+                          len(self.outline.get("chapters", [])) > 0)
+
+            # Or transition from micro once current chapter is substantially complete
+            micro_done = (self.current_chapter and
+                         len(self.current_chapter.strip()) > 100 and  # Some minimal content threshold
+                         self.micro_progress >= 1.0)
+            return macro_done or micro_done
+
+        elif target_phase == "micro":
+            # Transition when mid phase has sufficient chapter details to proceed to content creation
+            mid_ready = ("chapter_details" in self.mid_phase_data and
+                        self.current_chapter_index < len(self.chapters) + 1)
+            return mid_ready
+
+        return False
