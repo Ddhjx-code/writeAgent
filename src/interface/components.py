@@ -62,7 +62,7 @@ def create_character_input_section():
                 value="Protagonist"
             )
         with gr.Row():
-            character_description = gr.Textarea(label="Description")
+            character_description = gr.TextArea(label="Description")
         add_character_btn = gr.Button("Add Character")
     return character_name, character_role, character_description, add_character_btn
 
@@ -125,7 +125,7 @@ def create_human_feedback_section():
     """Create the human feedback section."""
     with gr.Accordion("Human Feedback", open=True):
         gr.Markdown("### Chapter Review")
-        feedback_textarea = gr.Textarea(
+        feedback_textarea = gr.TextArea(
             label="Your Feedback",
             placeholder="Provide feedback on the last chapter or suggest changes...",
             lines=5
@@ -146,10 +146,11 @@ def create_visualization_section():
     """Create data visualization section."""
     with gr.Accordion("Story Visualization", open=False):
         with gr.Tab("Characters"):
-            character_tree = gr.Graph(
+            character_tree = gr.Textbox(
                 label="Character Relationships",
-                # In a real implementation, this would render a character relationship graph
-                value=None
+                placeholder="Character relationships will be visualized here...",
+                lines=10,
+                interactive=False
             )
         with gr.Tab("World Building"):
             world_map = gr.Textbox(
@@ -159,8 +160,10 @@ def create_visualization_section():
                 interactive=False
             )
         with gr.Tab("Plot Progression"):
-            plot_chart = gr.BarPlot(
-                title="Plot Development",
-                # In a real implementation, this would show a plot development chart
+            plot_chart = gr.Textbox(
+                label="Plot Development",
+                placeholder="Plot progression chart will be displayed here...",
+                lines=10,
+                interactive=False
             )
     return character_tree, world_map, plot_chart
