@@ -67,7 +67,7 @@
   - 风格/节奏重大调整
 - **实现方式**：
   - 使用 AutoGen 的 `UserProxyAgent` 暂停流程等待输入
-  - 可选 Gradio 界面展示草稿、专家建议、问题高亮
+  - 现代化 React 前端界面展示草稿、专家建议、问题高亮，支持实时协作和反馈
 
 ---
 
@@ -78,7 +78,8 @@
 | 多智能体框架 | **AutoGen**（v0.2+） + **LangGraph**（来自 LangChain） |
 | 知识库 | **LlamaIndex** + **Chroma**（本地） / **Pinecone**（云端） |
 | LLM 后端 | **Claude 3.5 Sonnet** 或 **GPT-4o**（长上下文、强推理） |
-| 前端界面 | **Gradio**（快速搭建审核面板） |
+| 前端界面 | **React + Vite**（现代化中文界面） |
+| 后端API | **FastAPI**（RESTful API 接口） |
 | 文档管理 | 自动保存为 Markdown + **Git** 版本追踪 |
 
 ---

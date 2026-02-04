@@ -15,7 +15,8 @@ The AI Cooperative Novel Writing System is divided into several key modules:
 - **LLM**: LLM provider utilities and management (`src/llm/`)
 - **Knowledge Base**: Persistent storage and retrieval layer for story information (`src/knowledge/`)
 - **Communication**: Communication between agents
-- **Interface**: Gradio web interface for user interaction (`src/interface/`)
+- **Interface**: React web interface for user interaction (`src/frontend/`)
+- **API**: FastAPI backend server with RESTful endpoints (`src/api/`)
 - **Core**: Main engine and system integration components (`src/core/`)
 
 ## Architecture Overview
@@ -46,7 +47,7 @@ Located in `src/core/engine.py`, this orchestrates the entire system including:
 - Agent initialization and management
 - Knowledge store integration
 - Story state management
-- Interface handling
+- API endpoint handling
 
 ### LLM Providers
 Located in `src/llm/providers.py`, this manages unified interface for multiple LLM providers including:
@@ -86,8 +87,12 @@ python -m src.main
 # Create and run a simple story
 python -m src.main --create-story --run-story
 
-# Launch the web interface
-python -m src.main --ui
+# Launch the web interface (NEW):
+# 1. Start the API backend:
+uvicorn src.api.server:app --host 0.0.0.0 --port 8000
+
+# 2. In another terminal, start the React frontend:
+cd src/frontend && npm install && npm run dev
 ```
 
 ### Testing
@@ -124,3 +129,7 @@ The system is configured through environment variables:
 - `src/workflow/graph.py`: LangGraph workflow orchestration
 - `src/workflow/nodes.py`: Node definitions for each agent
 - `src/workflow/state.py`: Graph state definition
+- `src/api/server.py`: FastAPI backend server
+- `src/api/types.py`: API type definitions
+- `src/frontend/src/`: React components and UI
+- `src/frontend/package.json`: Frontend dependencies
