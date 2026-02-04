@@ -1,5 +1,10 @@
+"""UI组件定义 - 原Gradio定义，现为React前端提供参考
+
+该文件包含原Gradio组件定义，
+现已作为React组件结构和API规范的参考。
+"""
 from typing import Dict, Any, List, Optional
-import gradio as gr
+# import gradio as gr  # 已弃用：不再使用Gradio界面
 from ..novel_types import StoryState
 
 

@@ -20,7 +20,8 @@ from ..agents.dialogue_specialist import DialogueSpecialistAgent
 from ..agents.world_builder import WorldBuilderAgent
 from ..agents.pacing_advisor import PacingAdvisorAgent
 from ..agents.humanizer import HumanizerAgent
-from ..interface.gradio_app import GradioInterface
+# from ..interface.gradio_app import GradioInterface  # 已移除：旧的Gradio界面
+# 新架构：API接口由src/api/server.py处理，前端使用React
 
 
 class WritingEngine:
