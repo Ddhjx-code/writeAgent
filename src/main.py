@@ -6,6 +6,7 @@ from typing import Dict, Any
 from .config import Config
 from .core.engine import WritingEngine
 from .workflow.state import GraphState
+import uvicorn
 
 
 def create_sample_story_data() -> Dict[str, Any]:
@@ -46,6 +47,7 @@ async def main():
     """Main entry point for the application."""
     parser = argparse.ArgumentParser(description="AI Collaborative Novel Writing System")
     parser.add_argument("--ui", action="store_true", help="Launch the Gradio UI")
+    parser.add_argument("--api", action="store_true", help="Launch the FastAPI server")
     parser.add_argument("--interface-share", action="store_true", help="Share the Gradio UI publicly")
     parser.add_argument("--create-story", action="store_true", help="Create a sample story")
     parser.add_argument("--run-story", action="store_true", help="Run the story generation process")
@@ -113,6 +115,38 @@ async def main():
             logging.warning("You may want to complete that first before starting the UI, or run them separately.")
 
         await engine.start_interface_server(share=args.interface_share)
+
+    # Launch API server if requested
+    elif args.api:
+        if engine.is_running:
+            logging.warning("The engine is currently running a story generation process.")
+            logging.warning("Launching API server alongside running process.")
+
+        from .api.server import app
+        # Set the engine to the app so it can be accessed by API endpoints
+        app.engine = engine
+
+        # Run FastAPI with uvicorn from a sync context
+        import nest_asyncio
+        nest_asyncio.apply()
+
+        logging.info("Starting FastAPI server for new interface...")
+        uvicorn.run(app, host="0.0.0.0", port=8000)
+
+    # If no specific mode is selected, show status and instructions
+    if not any([args.ui, args.api, args.run_story, args.create_story, args.load_state]):
+        print("\\nAvailable modes:")
+        print("  --ui                    Launch the Gradio web interface")
+        print("  --api                   Launch the FastAPI server for new React interface")
+        print("  --create-story          Create a sample story to work with")
+        print("  --run-story             Execute the story generation workflow")
+        print("  --load-state <path>     Load an existing story state")
+        print("  --help                  Show this help message")
+        print("\\nExample usage:")
+        print("  python -m src.main --create-story --run-story --iterations 15")
+        print("  python -m src.main --ui --interface-share")
+        print("  python -m src.main --api")
+        print("  python -m src.main --load-state my_story.json --ui")
 
     # If no specific mode is selected, show status and instructions
     if not any([args.ui, args.run_story, args.create_story, args.load_state]):
