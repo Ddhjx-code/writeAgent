@@ -104,7 +104,7 @@ async def main():
             logging.info(f"Story state saved: {success}")
 
         # Export the story
-        logging.info("\nExporting story as text...")
+        logging.info("\\nExporting story as text...")
         story_txt = await engine.export_story(final_state, "txt")
         logging.info(story_txt[:500] + "..." if len(story_txt) > 500 else story_txt)
 
@@ -114,6 +114,9 @@ async def main():
             logging.warning("The engine is currently running a story generation process.")
             logging.warning("You may want to complete that first before starting the UI, or run them separately.")
 
+        logging.warning("注意: 当前的UI启动命令仍然引用旧的Gradio界面。")
+        logging.warning("如需使用新的现代化React界面，请使用 --api 参数启动API服务器，")
+        logging.warning("然后单独启动React前端 (cd src/frontend && npm run dev)")
         await engine.start_interface_server(share=args.interface_share)
 
     # Launch API server if requested
@@ -136,7 +139,7 @@ async def main():
     # If no specific mode is selected, show status and instructions
     if not any([args.ui, args.api, args.run_story, args.create_story, args.load_state]):
         print("\\nAvailable modes:")
-        print("  --ui                    Launch the Gradio web interface")
+        print("  --ui                    Launch the Gradio web interface (deprecated)")
         print("  --api                   Launch the FastAPI server for new React interface")
         print("  --create-story          Create a sample story to work with")
         print("  --run-story             Execute the story generation workflow")
@@ -146,19 +149,6 @@ async def main():
         print("  python -m src.main --create-story --run-story --iterations 15")
         print("  python -m src.main --ui --interface-share")
         print("  python -m src.main --api")
-        print("  python -m src.main --load-state my_story.json --ui")
-
-    # If no specific mode is selected, show status and instructions
-    if not any([args.ui, args.run_story, args.create_story, args.load_state]):
-        print("\nAvailable modes:")
-        print("  --ui                    Launch the Gradio web interface")
-        print("  --create-story          Create a sample story to work with")
-        print("  --run-story             Execute the story generation workflow")
-        print("  --load-state <path>     Load an existing story state")
-        print("  --help                  Show this help message")
-        print("\nExample usage:")
-        print("  python -m src.main --create-story --run-story --iterations 15")
-        print("  python -m src.main --ui --interface-share")
         print("  python -m src.main --load-state my_story.json --ui")
 
 
