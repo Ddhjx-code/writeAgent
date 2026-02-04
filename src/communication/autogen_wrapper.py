@@ -1,3 +1,4 @@
+import logging
 from typing import Dict, Any, List, Optional, Callable
 from ..agents.base import BaseAgent
 from .message import AgentMessage, MessageType
@@ -33,7 +34,7 @@ class AutoGenWrapper:
                 message.status = "failed"
                 return False
         except Exception as e:
-            print(f"Error sending message: {e}")
+            logging.error(f"Error sending message: {e}")
             if message:
                 message.status = "failed"
             return False
@@ -124,7 +125,7 @@ class AutoGenWrapper:
             return None
 
         except Exception as e:
-            print(f"Error processing message: {e}")
+            logging.error(f"Error processing message: {e}")
             # Return an error message
             error_message = AgentMessage(
                 id=f"error_{message.id}",

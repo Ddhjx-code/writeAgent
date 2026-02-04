@@ -147,35 +147,35 @@ class DialogueSpecialistAgent(BaseAgent):
         **Output Format:**
         Provide a comprehensive dialogue analysis in this JSON structure:
 
-        {
-          "character_voice_consistency": {
+        {{
+          "character_voice_consistency": {{
             "distinctiveness_score": 1-10,
             "individual_voices": [],
             "voice_consistency": "..."
-          },
-          "dialogue_quality_metrics": {
+          }},
+          "dialogue_quality_metrics": {{
             "naturalness_score": 1-10,
             "purposefulness": "...",
             "balance": "...",
             "authenticity": "..."
-          },
-          "dialogue_technique_analysis": {
+          }},
+          "dialogue_technique_analysis": {{
             "subtext_effectiveness": "...",
             "dialogue_tags": "...",
             "attribution_consistency": "..."
-          },
-          "character_interaction_dynamics": {
+          }},
+          "character_interaction_dynamics": {{
             "relationship_progression": "...",
             "conflict_representation": "...",
             "emotional_arc": "..."
-          },
+          }},
           "improvement_suggestions": [],
-          "style_consistency": {
+          "style_consistency": {{
             "vocabulary_choices": "...",
             "conversational_styles": "...",
             "formality_levels": "..."
-          }
-        }
+          }}
+        }}
 
         Rate key elements on a 1-10 scale and provide actionable improvement suggestions.
         """

@@ -168,32 +168,32 @@ class WorldBuilderAgent(BaseAgent):
         **Output Format:**
         Provide a comprehensive world building report in this JSON structure:
 
-        {
-          "geographic_expansion": {
+        {{
+          "geographic_expansion": {{
             "new_locations_introduced": [],
             "location_details_enhanced": [],
             "map_consistency": "...",
             "exploration_opportunities": []
-          },
-          "cultural_development": {
+          }},
+          "cultural_development": {{
             "new_cultural_elements": [],
             "cultural_detail_enhanced": [],
             "tradition_integration": "..."
-          },
-          "world_systems_integrity": {
+          }},
+          "world_systems_integrity": {{
             "magic_system_updates": [],
             "political_system_updates": [],
             "economic_system_updates": [],
             "social_structure_updates": []
-          },
-          "consistency_verification": {
+          }},
+          "consistency_verification": {{
             "new_elements_consistent": "...",
             "contradiction_check": "...",
             "integration_quality": "..."
-          },
+          }},
           "world_building_recommendations": [],
           "expansion_opportunities": []
-        }
+        }}
 
         Focus on creating a cohesive, believable world that serves the story while maintaining internal consistency.
         """

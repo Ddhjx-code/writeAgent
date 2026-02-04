@@ -222,12 +222,12 @@ class NodeManager:
         """Node that reviews and improves content quality."""
         # Update phase progress
         updated_state = self.phase_manager.update_phase_progress(state)
-        print(f"Executing Editor node in {updated_state.current_hierarchical_phase} phase at iteration {updated_state.iteration_count}")
+        logging.info(f"Executing Editor node in {updated_state.current_hierarchical_phase} phase at iteration {updated_state.iteration_count}")
 
         try:
             # Check if this agent should run in the current hierarchical phase
             if not self.phase_manager.should_execute_agent_in_phase("editor", updated_state.current_hierarchical_phase):
-                print(f"Skipping editor node: not appropriate for {updated_state.current_hierarchical_phase} phase")
+                logging.debug(f"Skipping editor node: not appropriate for {updated_state.current_hierarchical_phase} phase")
                 return updated_state
 
             # Convert GraphState to dict for agent processing
@@ -254,7 +254,7 @@ class NodeManager:
             return new_state
 
         except Exception as e:
-            print(f"Error in editor_node: {str(e)}")
+            logging.error(f"Error in editor_node: {str(e)}")
             new_state = updated_state.copy()
             new_state.error_count += 1
             new_state.last_error = f"Editor node error: {str(e)}"
@@ -264,12 +264,12 @@ class NodeManager:
         """Node that verifies consistency across the entire story."""
         # Update phase progress
         updated_state = self.phase_manager.update_phase_progress(state)
-        print(f"Executing Consistency Checker node in {updated_state.current_hierarchical_phase} phase at iteration {updated_state.iteration_count}")
+        logging.info(f"Executing Consistency Checker node in {updated_state.current_hierarchical_phase} phase at iteration {updated_state.iteration_count}")
 
         try:
             # Check if this agent should run in the current hierarchical phase
             if not self.phase_manager.should_execute_agent_in_phase("consistency_checker", updated_state.current_hierarchical_phase):
-                print(f"Skipping consistency_checker node: not appropriate for {updated_state.current_hierarchical_phase} phase")
+                logging.debug(f"Skipping consistency_checker node: not appropriate for {updated_state.current_hierarchical_phase} phase")
                 return updated_state
 
             # Convert GraphState to dict for agent processing
@@ -295,7 +295,7 @@ class NodeManager:
             return new_state
 
         except Exception as e:
-            print(f"Error in consistency_checker_node: {str(e)}")
+            logging.error(f"Error in consistency_checker_node: {str(e)}")
             new_state = updated_state.copy()
             new_state.error_count += 1
             new_state.last_error = f"Consistency checker node error: {str(e)}"
@@ -305,12 +305,12 @@ class NodeManager:
         """Node that analyzes and improves character dialogue."""
         # Update phase progress
         updated_state = self.phase_manager.update_phase_progress(state)
-        print(f"Executing Dialogue Specialist node in {updated_state.current_hierarchical_phase} phase at iteration {updated_state.iteration_count}")
+        logging.info(f"Executing Dialogue Specialist node in {updated_state.current_hierarchical_phase} phase at iteration {updated_state.iteration_count}")
 
         try:
             # Check if this agent should run in the current hierarchical phase
             if not self.phase_manager.should_execute_agent_in_phase("dialogue_specialist", updated_state.current_hierarchical_phase):
-                print(f"Skipping dialogue_specialist node: not appropriate for {updated_state.current_hierarchical_phase} phase")
+                logging.debug(f"Skipping dialogue_specialist node: not appropriate for {updated_state.current_hierarchical_phase} phase")
                 return updated_state
 
             # Convert GraphState to dict for agent processing
@@ -335,7 +335,7 @@ class NodeManager:
             return new_state
 
         except Exception as e:
-            print(f"Error in dialogue_specialist_node: {str(e)}")
+            logging.error(f"Error in dialogue_specialist_node: {str(e)}")
             new_state = updated_state.copy()
             new_state.error_count += 1
             new_state.last_error = f"Dialogue specialist node error: {str(e)}"
@@ -418,12 +418,12 @@ class NodeManager:
         """Node that analyzes story rhythm and pace."""
         # Update phase progress
         updated_state = self.phase_manager.update_phase_progress(state)
-        print(f"Executing Pacing Advisor node in {updated_state.current_hierarchical_phase} phase at iteration {updated_state.iteration_count}")
+        logging.info(f"Executing Pacing Advisor node in {updated_state.current_hierarchical_phase} phase at iteration {updated_state.iteration_count}")
 
         try:
             # Check if this agent should run in the current hierarchical phase
             if not self.phase_manager.should_execute_agent_in_phase("pacing_advisor", updated_state.current_hierarchical_phase):
-                print(f"Skipping pacing_advisor node: not appropriate for {updated_state.current_hierarchical_phase} phase")
+                logging.debug(f"Skipping pacing_advisor node: not appropriate for {updated_state.current_hierarchical_phase} phase")
                 return updated_state
 
             # Convert GraphState to dict for agent processing
@@ -459,7 +459,7 @@ class NodeManager:
             return new_state
 
         except Exception as e:
-            print(f"Error in pacing_advisor_node: {str(e)}")
+            logging.error(f"Error in pacing_advisor_node: {str(e)}")
             new_state = updated_state.copy()
             new_state.error_count += 1
             new_state.last_error = f"Pacing advisor node error: {str(e)}"

@@ -125,7 +125,7 @@ class GradioInterface:
                 outputs=[agent_msgs, progress_bar]
             )
 
-            request_revision_btn.click(
+            revision_btn.click(
                 provide_feedback,
                 inputs=[feedback_area, progress_bar],
                 outputs=[agent_msgs, revision_preview, progress_bar]

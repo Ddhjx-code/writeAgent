@@ -160,37 +160,37 @@ class PacingAdvisorAgent(BaseAgent):
         **Output Format:**
         Provide a comprehensive pacing analysis in this JSON structure:
 
-        {
-          "rhythm_assessment": {
+        {{
+          "rhythm_assessment": {{
             "sentence_length_variety": "...",
             "paragraph_structure": "...",
             "scene_vs_detailed_balance": "...",
             "rhythm_score": 1-10
-          },
-          "tension_analysis": {
+          }},
+          "tension_analysis": {{
             "current_tension_level": "...",
             "tension_building_mechanisms": [],
             "crescendo_effectiveness": "...",
             "tension_consistency": "..."
-          },
-          "narrative_flow": {
+          }},
+          "narrative_flow": {{
             "transition_smoothness": "...",
             "content_pacing": "...",
             "reader_engagement": "...",
             "flow_score": 1-10
-          },
-          "structural_pacing": {
+          }},
+          "structural_pacing": {{
             "chapter_beginning": "...",
             "mid_section_movement": "...",
             "ending_satisfaction": "..."
-          },
+          }},
           "pacing_recommendations": [],
-          "comparison_to_genre_standards": {
+          "comparison_to_genre_standards": {{
             "pace_relative_to_genre": "...",
             "tension_distribution": "...",
             "engagement_patterns": "..."
-          }
-        }
+          }}
+        }}
 
         Rate rhythm and flow on a 1-10 scale and provide specific recommendations for pacing improvements.
         """

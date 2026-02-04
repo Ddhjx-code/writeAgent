@@ -1,6 +1,7 @@
 import asyncio
 import argparse
 import sys
+import logging
 from typing import Dict, Any
 from .config import Config
 from .core.engine import WritingEngine
@@ -62,54 +63,54 @@ async def main():
     engine = WritingEngine(config)
     await engine.initialize()
 
-    print("AI Collaborative Novel Writing System initialized!")
-    print(f"System Status: {engine.get_system_status()}")
+    logging.info("AI Collaborative Novel Writing System initialized!")
+    logging.info(f"System Status: {engine.get_system_status()}")
 
     initial_state = None
 
     # Load existing story if specified
     if args.load_state:
-        print(f"Loading story state from {args.load_state}")
+        logging.info(f"Loading story state from {args.load_state}")
         initial_state = await engine.load_story_state(args.load_state)
     elif args.create_story or args.run_story:
         # Create a new story
-        print("Creating a new story...")
+        logging.info("Creating a new story...")
         story_data = create_sample_story_data()
         initial_state = await engine.create_new_story(story_data)
-        print(f"Created story: '{initial_state.title}''")
+        logging.info(f"Created story: '{initial_state.title}''")
 
     # Run story generation if requested
     if args.run_story and initial_state:
-        print("Starting story generation...")
+        logging.info("Starting story generation...")
         final_state = await engine.run_story_generation(
             initial_state,
             max_iterations=args.iterations,
             target_chapters=args.target_chapters
         )
 
-        print(f"Story generation completed!")
-        print(f"Generated {len(final_state.chapters)} chapters")
-        print(f"Final status: {final_state.story_status}")
+        logging.info(f"Story generation completed!")
+        logging.info(f"Generated {len(final_state.chapters)} chapters")
+        logging.info(f"Final status: {final_state.story_status}")
 
         # Display metrics
         metrics = await engine.get_story_metrics(final_state)
-        print(f"Story metrics: {metrics}")
+        logging.info(f"Story metrics: {metrics}")
 
         # Save the result if path was specified
         if args.save_path:
             success = await engine.save_story_state(final_state, args.save_path)
-            print(f"Story state saved: {success}")
+            logging.info(f"Story state saved: {success}")
 
         # Export the story
-        print("\nExporting story as text...")
+        logging.info("\nExporting story as text...")
         story_txt = await engine.export_story(final_state, "txt")
-        print(story_txt[:500] + "..." if len(story_txt) > 500 else story_txt)
+        logging.info(story_txt[:500] + "..." if len(story_txt) > 500 else story_txt)
 
     # Launch UI if requested
     if args.ui:
         if engine.is_running:
-            print("The engine is currently running a story generation process.")
-            print("You may want to complete that first before starting the UI, or run them separately.")
+            logging.warning("The engine is currently running a story generation process.")
+            logging.warning("You may want to complete that first before starting the UI, or run them separately.")
 
         await engine.start_interface_server(share=args.interface_share)
 

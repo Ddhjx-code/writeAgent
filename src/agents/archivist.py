@@ -41,7 +41,8 @@ class ArchivistAgent(BaseAgent):
                 # Try to parse the response as JSON directly
                 archived_content = json.loads(response_content)
             except json.JSONDecodeError:
-                # If not valid JSON, look for JSON content in markdown blocks\n                json_match = re.search(r'```(?:json)?\s*({.*?})\s*```', response_content, re.DOTALL)
+                # If not valid JSON, look for JSON content in markdown blocks
+                json_match = re.search(r'```(?:json)?\s*({.*?})\s*```', response_content, re.DOTALL)
                 if json_match:
                     try:
                         archived_content = json.loads(json_match.group(1))

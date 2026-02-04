@@ -1,4 +1,5 @@
 from typing import Dict, Any, Literal
+import logging
 from langgraph.graph import StateGraph, END
 from ..config import Config
 from ..knowledge.store import KnowledgeStore
@@ -59,13 +60,13 @@ class NovelWritingGraph:
             await self.initialize()
 
         if debug:
-            print(f"Starting novel writing workflow in {initial_state.current_hierarchical_phase} phase...")
+            logging.info(f"Starting novel writing workflow in {initial_state.current_hierarchical_phase} phase...")
 
         # Run the graph with the initial state
         final_state = await self.compiled_graph.ainvoke(initial_state)
 
         if debug:
-            print(f"Workflow completed. Final state: {final_state.current_phase}, Hierarchical Phase: {final_state.current_hierarchical_phase}")
+            logging.info(f"Workflow completed. Final state: {final_state.current_phase}, Hierarchical Phase: {final_state.current_hierarchical_phase}")
 
         return final_state
 
@@ -110,7 +111,7 @@ class NovelWritingGraph:
                 f.write(img_bytes)
             return output_path
         except Exception as e:
-            print(f"Could not generate visualization: {e}")
+            logging.error(f"Could not generate visualization: {e}")
             # Return None to indicate failure
             return None
 
@@ -146,7 +147,7 @@ class NovelWritingGraph:
                               "micro"
                 current_state = self.phase_manager.prepare_phase_transition(current_state, target_phase)
                 if debug:
-                    print(f"Phase transition: {target_phase} at iteration {iteration_count}")
+                    logging.info(f"Phase transition: {target_phase} at iteration {iteration_count}")
 
             # Run a step of the workflow
             current_state = await self.compiled_graph.ainvoke(current_state)

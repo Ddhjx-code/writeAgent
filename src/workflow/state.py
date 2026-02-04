@@ -153,21 +153,31 @@ class GraphState(BaseModel):
             return False
 
         # Check hierarchical phase-specific continuation criteria
+        # If no specific criteria are defined for a phase, continue normally
         if self.current_hierarchical_phase == "macro":
-            # For macro, continue if we have not met completion criteria and the criteria exist
-            has_criteria = len(self.macro_completion_criteria) > 0
-            is_complete = self.macro_progress >= 1.0
-            return has_criteria and not is_complete
+            # For macro, continue if we have not set specific completion criteria or not yet met them
+            if len(self.macro_completion_criteria) == 0:
+                return base_continuation  # Continue if base conditions met but no specific criteria set
+            else:
+                # If criteria exist, continue until they're met
+                is_complete = self.macro_progress >= 1.0
+                return not is_complete
         elif self.current_hierarchical_phase == "mid":
-            # For mid, continue if we have not met completion criteria and the criteria exist
-            has_criteria = len(self.mid_completion_criteria) > 0
-            is_complete = self.mid_progress >= 1.0
-            return has_criteria and not is_complete
+            # For mid, continue if we have not set specific completion criteria or not yet met them
+            if len(self.mid_completion_criteria) == 0:
+                return base_continuation  # Continue if base conditions met but no specific criteria set
+            else:
+                # If criteria exist, continue until they're met
+                is_complete = self.mid_progress >= 1.0
+                return not is_complete
         else:  # micro
-            # For micro, continue if we have not met completion criteria and the criteria exist
-            has_criteria = len(self.micro_completion_criteria) > 0
-            is_complete = self.micro_progress >= 1.0
-            return has_criteria and not is_complete
+            # For micro, continue if we have not set specific completion criteria or not yet met them
+            if len(self.micro_completion_criteria) == 0:
+                return base_continuation  # Continue if base conditions met but no specific criteria set
+            else:
+                # If criteria exist, continue until they're met
+                is_complete = self.micro_progress >= 1.0
+                return not is_complete
 
     def can_transition_to_phase(self, target_phase: Literal["macro", "mid", "micro"]) -> bool:
         """Check if a transition to the target hierarchical phase is allowed."""

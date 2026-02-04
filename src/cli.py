@@ -1,6 +1,7 @@
 import asyncio
 import argparse
 import sys
+import logging
 from typing import Dict, Any, Optional
 import json
 import os

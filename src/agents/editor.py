@@ -36,24 +36,24 @@ class EditorAgent(BaseAgent):
             # Call the actual LLM with the formatted prompt
             response_content = await self.llm.acall(formatted_prompt, self.config.default_editor_model)
 
-            # Parse the response to ensure it's valid JSON
-            try:
-                # Try to parse the response as JSON directly
-                edit_recommendations = json.loads(response_content)
-            except json.JSONDecodeError:
-                # If not valid JSON, look for JSON content in markdown blocks
-                json_match = re.search(r'```(?:json)?\s*({.*?})\s*```', response_content, re.DOTALL)
-                if json_match:
-                    try:
-                        edit_recommendations = json.loads(json_match.group(1))
-                    except json.JSONDecodeError:
-                        # If still not valid, create a simple default structure
-                        edit_recommendations = {"message": "No JSON content in response"}
-                else:
-                    # Check if this is a MOCK response from the LLM provider
-                    if response_content.startswith(("MOCK RESPONSE:", "MOCK ANTHROPIC RESPONSE:", "MOCK MISTRAL RESPONSE:", "MOCK COHERE RESPONSE:")):
-                        # For MOCK responses, create a minimal JSON structure instead of failing
-                        edit_recommendations = {"status": "mock_response", "message": "MOCK response processed successfully"}
+            # Check if this is a MOCK response from the LLM provider first
+            if response_content.startswith(("MOCK RESPONSE:", "MOCK ANTHROPIC RESPONSE:", "MOCK MISTRAL RESPONSE:", "MOCK COHERE RESPONSE:")):
+                # For MOCK responses, create a minimal JSON structure instead of failing
+                edit_recommendations = {"status": "mock_response", "message": "MOCK response processed successfully"}
+            else:
+                # Parse the response to ensure it's valid JSON
+                try:
+                    # Try to parse the response as JSON directly
+                    edit_recommendations = json.loads(response_content)
+                except json.JSONDecodeError:
+                    # If not valid JSON, look for JSON content in markdown blocks
+                    json_match = re.search(r'```(?:json)?\s*({.*?})\s*```', response_content, re.DOTALL)
+                    if json_match:
+                        try:
+                            edit_recommendations = json.loads(json_match.group(1))
+                        except json.JSONDecodeError:
+                            # If still not valid, create a simple default structure
+                            edit_recommendations = {"message": "No JSON content in response"}
                     else:
                         # For other non-JSON responses create simple structure
                         edit_recommendations = {"message": "No structured content returned"}
@@ -127,24 +127,24 @@ class EditorAgent(BaseAgent):
 
         **Output Format:**
         Provide detailed feedback in the following JSON structure:
-        {
-          "structural_feedback": {
+        {{
+          "structural_feedback": {{
             "pacing_issues": [],
             "plot_advancement": "...",
             "character_development": "..."
-          },
-          "style_feedback": {
+          }},
+          "style_feedback": {{
             "sentence_variety": "...",
             "vocabulary": "...",
             "tone_consistency": "..."
-          },
-          "continuity_check": {
+          }},
+          "continuity_check": {{
             "character_appearances": "...",
             "world_building": "...",
             "plot_threads": "..."
-          },
+          }},
           "suggested_revisions": [],
           "overall_score": 1-10,
           "recommendations_summary": "..."
-        }
+        }}
         """

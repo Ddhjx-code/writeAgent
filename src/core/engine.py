@@ -2,6 +2,7 @@ from typing import Dict, Any, Optional, List
 import asyncio
 import json
 import os
+import logging
 from datetime import datetime
 
 from ..config import Config
@@ -50,7 +51,7 @@ class WritingEngine:
 
     async def initialize(self):
         """Initialize all system components."""
-        print("Initializing writing engine components...")
+        logging.info("Initializing writing engine components...")
 
         # Initialize knowledge base
         await self.knowledge_store.initialize()
@@ -87,7 +88,7 @@ class WritingEngine:
         await self.interface.initialize()
 
         self.system_state = "ready"
-        print("Writing engine initialized successfully.")
+        logging.info("Writing engine initialized successfully.")
 
     async def create_new_story(self, story_data: Dict[str, Any]) -> GraphState:
         """Create a new story from initial data."""
@@ -134,16 +135,16 @@ class WritingEngine:
         self.is_running = True
         current_state = initial_state
 
-        print(f"Starting story generation for '{current_state.title}'...")
-        print(f"Target: {target_chapters} chapters in {max_iterations} iterations")
+        logging.info(f"Starting story generation for '{current_state.title}'...")
+        logging.info(f"Target: {target_chapters} chapters in {max_iterations} iterations")
 
         try:
             for iteration in range(max_iterations):
                 if not current_state.should_continue() or len(current_state.completed_chapters) >= target_chapters:
-                    print(f"Story generation completed after {iteration+1} iterations")
+                    logging.info(f"Story generation completed after {iteration+1} iterations")
                     break
 
-                print(f"Iteration {iteration+1}: Current phase - {current_state.current_phase}")
+                logging.info(f"Iteration {iteration+1}: Current phase - {current_state.current_phase}")
 
                 # Update state with iteration information
                 current_state.iteration_count = iteration
@@ -157,11 +158,11 @@ class WritingEngine:
                     current_state.story_status = "complete"
                     break
 
-            print(f"Story generation finished after {current_state.iteration_count} iterations")
+            logging.info(f"Story generation finished after {current_state.iteration_count} iterations")
             return current_state
 
         except Exception as e:
-            print(f"Error during story generation: {str(e)}")
+            logging.error(f"Error during story generation: {str(e)}")
             current_state.error_count += 1
             current_state.last_error = str(e)
             return current_state
@@ -234,11 +235,11 @@ class WritingEngine:
             with open(save_path, 'w', encoding='utf-8') as f:
                 json.dump(state_dict, f, ensure_ascii=False, indent=2)
 
-            print(f"Story state saved to {save_path}")
+            logging.info(f"Story state saved to {save_path}")
             return True
 
         except Exception as e:
-            print(f"Error saving story state: {str(e)}")
+            logging.error(f"Error saving story state: {str(e)}")
             return False
 
     async def load_story_state(self, load_path: str) -> Optional[GraphState]:
@@ -274,11 +275,11 @@ class WritingEngine:
                 human_review_status=state_dict.get("human_review_status", "not_needed")
             )
 
-            print(f"Story state loaded from {load_path}")
+            logging.info(f"Story state loaded from {load_path}")
             return loaded_state
 
         except Exception as e:
-            print(f"Error loading story state: {str(e)}")
+            logging.error(f"Error loading story state: {str(e)}")
             return None
 
     async def start_interface_server(self, share: bool = False):
@@ -286,7 +287,7 @@ class WritingEngine:
         if self.system_state != "ready":
             raise RuntimeError("Engine not ready. Call initialize() first.")
 
-        print("Starting Gradio interface server...")
+        logging.info("Starting Gradio interface server...")
         await self.interface.run_app(share=share)
 
     def get_system_status(self) -> Dict[str, Any]:

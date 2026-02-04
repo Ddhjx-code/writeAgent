@@ -1,3 +1,4 @@
+import logging
 from typing import Dict, Any, List, Optional, Callable
 from enum import Enum
 from ..novel_types import AgentResponse
@@ -56,7 +57,7 @@ class CommunicationManager:
                         response = await self.agents[receiver].communicate(message)
                         success_count += 1
                     except Exception as e:
-                        print(f"Error communicating with {receiver}: {e}")
+                        logging.error(f"Error communicating with {receiver}: {e}")
                         continue
                 else:
                     # Agent doesn't support direct communication, store for later retrieval

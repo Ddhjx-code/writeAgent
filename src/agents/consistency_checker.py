@@ -273,38 +273,38 @@ class ConsistencyCheckerAgent(BaseAgent):
         **Output Format:**
         Provide a comprehensive consistency report in this JSON structure:
 
-        {
-          "character_continuity": {
+        {{
+          "character_continuity": {{
             "character_ages": [],
             "character_appearances": [],
             "character_personality": [],
             "character_relationships": []
-          },
-          "timeline_continuity": {
+          }},
+          "timeline_continuity": {{
             "chronology_issues": [],
             "temporal_gaps": [],
             "seasonal_consistency": []
-          },
-          "world_building_consistency": {
+          }},
+          "world_building_consistency": {{
             "geographical_unchanged": [],
             "cultural_details": [],
             "magical_systems": [],
             "societal_structure": []
-          },
-          "plot_continuity": {
+          }},
+          "plot_continuity": {{
             "major_plot_threads": [],
             "sub_plot_advancement": [],
             "unresolved_conflicts": []
-          },
-          "detail_consistency": {
+          }},
+          "detail_consistency": {{
             "physical_descriptions": [],
             "object_states": [],
             "relationship_statuses": []
-          },
+          }},
           "flagged_issues": [],
           "consistency_score": 1-10,
           "summary": "..."
-        }
+        }}
 
         Rate the overall consistency on a scale from 1-10 and provide a summary assessment.
         Note any changes that might appear inconsistent but could be intentional developments in the narrative.

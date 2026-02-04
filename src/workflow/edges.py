@@ -216,6 +216,10 @@ def route_after_human_review(state: GraphState) -> str:
 
 def route_workflow_logic(state: GraphState) -> str:
     """Main routing function that determines the next node based on current state and hierarchical phase."""
+    # Check if workflow should continue first
+    if not state.should_continue():
+        return END  # Terminate the workflow
+
     # Update phase progress
     updated_state = phase_manager.update_phase_progress(state)
 

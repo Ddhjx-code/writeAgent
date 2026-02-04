@@ -1,6 +1,7 @@
 """Ollama embedding utilities for the novel writing system."""
 
 import os
+import logging
 from typing import List, Union
 import ollama
 from ..config import Config
@@ -25,7 +26,7 @@ class OllamaEmbeddingProvider:
                 embeddings.append(response['embeddings'][0] if response['embeddings'] else [])
             return embeddings
         except Exception as e:
-            print(f"Error generating embeddings with Ollama: {e}")
+            logging.error(f"Error generating embeddings with Ollama: {e}")
             # Return empty embeddings list in case of error
             return [[] for _ in texts]
 
@@ -38,5 +39,5 @@ class OllamaEmbeddingProvider:
             )
             return response['embeddings'][0] if response['embeddings'] else []
         except Exception as e:
-            print(f"Error generating embedding with Ollama: {e}")
+            logging.error(f"Error generating embedding with Ollama: {e}")
             return []
