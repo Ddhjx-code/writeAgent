@@ -3,6 +3,7 @@ import asyncio
 from ..novel_types import AgentResponse
 from ..config import Config
 from .base import BaseAgent
+from ..core.prompt_manager import prompt_manager, PromptTemplate
 
 
 class WriterAgent(BaseAgent):
@@ -13,74 +14,93 @@ class WriterAgent(BaseAgent):
 
     async def process(self, state: Dict[str, Any]) -> AgentResponse:
         """Write narrative content based on the current story state."""
-        try:
-            # Build context for the writer
-            context = self._build_context(state)
+        max_retries = 3
+        retry_count = 0
 
-            # Get the prompt template
-            prompt = self.get_prompt()
+        while retry_count < max_retries:
+            try:
+                # Build context for the writer
+                context = self._build_context(state)
 
-            # Format the prompt with context
-            formatted_prompt = prompt.format(
-                title=state.get('title', 'Untitled'),
-                context=context,
-                chapter_outline=state.get('outline', {}).get('current_chapter_outline', ''),
-                world_building=state.get('world_details', {}),
-                characters=state.get('characters', {}),
-                current_content=state.get('current_chapter', ''),
-                previous_content=state.get('chapters', [])[-1]['content'] if state.get('chapters') else ''
-            )
+                # Get the prompt template with system and user messages
+                prompt_template = prompt_manager.get_prompt_template(self.name)
 
-            # Call the actual LLM with the formatted prompt
-            response_content = await self.llm.acall(formatted_prompt, self.config.default_writer_model)
+                # Format the user prompt with context
+                formatted_user_prompt = prompt_template.user_prompt.format(
+                    title=state.get('title', 'Untitled'),
+                    context=context,
+                    chapter_outline=state.get('outline', {}).get('current_chapter_outline', ''),
+                    world_building=state.get('world_details', {}),
+                    characters=state.get('characters', {}),
+                    current_content=state.get('current_chapter', ''),
+                    previous_content=state.get('chapters', [])[-1]['content'] if state.get('chapters') else ''
+                ) if prompt_template.user_prompt else f"Story: {state.get('title', 'Untitled')}. Context: {context}. Continue writing."
 
-            return AgentResponse(
-                agent_name=self.name,
-                content=response_content,
-                reasoning="Generated narrative content based on story context, outline, character relationships, and world-building elements",
-                suggestions=[
-                    "Consider adjusting tone for more dramatic effect",
-                    "Could expand on character motivations",
-                    "The setting details might need more clarity"
-                ],
-                status="success"
-            )
-        except Exception as e:
-            return AgentResponse(
-                agent_name=self.name,
-                content="",
-                reasoning=f"Error in WriterAgent processing: {str(e)}",
-                status="failed"
-            )
+                # Format the system prompt with context
+                formatted_system_prompt = prompt_template.system_prompt
+                if '{' in formatted_system_prompt and '}' in formatted_system_prompt:
+                    # If system prompt has placeholders, format them too
+                    formatted_system_prompt = formatted_system_prompt.format(
+                        title=state.get('title', 'Untitled'),
+                        context=context,
+                        world_building=state.get('world_details', {}),
+                        characters=state.get('characters', {}),
+                    )
+
+                # Call the actual LLM with both system and user prompts
+                response_content = await self.llm.call_with_system_user(
+                    formatted_system_prompt,
+                    formatted_user_prompt,
+                    self.config.default_writer_model
+                )
+
+                # Validate response format/content - check if we got a reasonable response
+                # If the content looks like error or MOCK response, try again
+                if response_content and ("MOCK" not in response_content or "ERROR" not in response_content) and len(response_content.strip()) > 10:
+                    return AgentResponse(
+                        agent_name=self.name,
+                        content=response_content,
+                        reasoning="Generated narrative content based on story context, outline, character relationships, and world-building elements",
+                        suggestions=[
+                            "Consider adjusting tone for more dramatic effect",
+                            "Could expand on character motivations",
+                            "The setting details might need more clarity"
+                        ],
+                        status="success"
+                    )
+                else:
+                    # If response is invalid, increase retry count and continue
+                    retry_count += 1
+                    if retry_count >= max_retries:
+                        return AgentResponse(
+                            agent_name=self.name,
+                            content="",
+                            reasoning=f"Failed to get valid response from LLM after {max_retries} attempts.",
+                            status="failed"
+                        )
+            except Exception as e:
+                retry_count += 1
+                if retry_count >= max_retries:
+                    return AgentResponse(
+                        agent_name=self.name,
+                        content="",
+                        reasoning=f"Error in WriterAgent processing after {max_retries} attempts: {str(e)}",
+                        status="failed"
+                    )
+
+        return AgentResponse(
+            agent_name=self.name,
+            content="",
+            reasoning=f"Failed to generate content after {max_retries} retries",
+            status="failed"
+        )
 
     def get_prompt(self) -> str:
-        """Return the prompt for the Writer agent."""
-        # For a real implementation, this would read from a file or configuration
-        # This is a simplified version that follows common story writing patterns
-        return """
-        As a professional creative writer, you will be tasked with generating the next portion of a novel based on the provided context and information.
-
-        **Story Information:**
-        - Title: {title}
-        - Current Story Context: {context}
-        - Chapter Outline: {chapter_outline}
-        - World Building Details: {world_building}
-        - Character Descriptions: {characters}
-        - Current Chapter: {current_content}
-        - Previous Chapter Content (for continuity): {previous_content}
-
-        **Writing Instructions:**
-        1. Follow the narrative structure and style consistent with the story's genre
-        2. Develop characters authentically, showing their growth and responding to events
-        3. Maintain world consistency and use details from provided world-building info
-        4. Advance the plot based on the provided outline and character motivations
-        5. Keep the narrative engaging and maintain pacing appropriate for the story
-        6. Ensure narrative flow with the previous content when possible
-        7. Focus on vivid scene-setting and compelling dialogue when appropriate
-
-        **Output:**
-        Generate the next portion of the novel that fits within the overarching story arc, maintaining stylistic consistency with the genre and tone established in the prior content. Make the writing engaging and purposeful while advancing the plot and character development.
-
-        Begin writing from the following draft:
-        {current_content}
-        """
+        """Return the old-style prompt for backward compatibility."""
+        # Delegate to prompt_manager to load from external file
+        template = prompt_manager.get_prompt_template(self.name)
+        # Combine system and user prompts for backward compatibility
+        if template.user_prompt:
+            return f"{template.system_prompt}\n\n{template.user_prompt}"
+        else:
+            return template.system_prompt
