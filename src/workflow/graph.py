@@ -63,6 +63,8 @@ class NovelWritingGraph:
             logging.info(f"Starting novel writing workflow in {initial_state.current_hierarchical_phase} phase...")
 
         # Run the graph with the initial state
+        # Instead of invoking the graph which runs until END, limit to one iteration
+        # to allow manual iteration control in the engine
         final_state = await self.compiled_graph.ainvoke(initial_state)
 
         if debug:
@@ -127,31 +129,61 @@ class NovelWritingGraph:
 
         current_state = initial_state
         max_iterations = initial_state.max_iterations
+        # Use the workflow configuration if available for cycle detection and loop limits
+        from .config import WorkflowConfig
+        config = WorkflowConfig()
 
         iteration_count = 0
         while iteration_count < max_iterations and current_state.should_continue():
             # Update phase progress
             current_state = self.phase_manager.update_phase_progress(current_state)
 
-            # Check if we should transition to a different phase
-            should_transition = self.phase_manager.should_transition_to_phase(current_state, "macro")
-            if not should_transition:
-                should_transition = self.phase_manager.should_transition_to_phase(current_state, "mid") and current_state.current_hierarchical_phase != "macro"
-            if not should_transition:
-                should_transition = self.phase_manager.should_transition_to_phase(current_state, "micro") and current_state.current_hierarchical_phase in ["mid", "macro"]
+            # Check for cycles and potential infinite loops before continuing
+            cycle_detected = current_state.detect_cycle(config.loop_detection_threshold)
+            if cycle_detected:
+                if debug:
+                    logging.info(f"Cycle detected in graph execution: {cycle_detected}")
+                # Mark forced transition to break the cycle
+                current_state.mark_forced_transition()
+                # Try to break the loop by returning current state
+                break
 
-            if should_transition:
-                # Prepare for phase transition
-                target_phase = "macro" if self.phase_manager.should_transition_to_phase(current_state, "macro") else \
-                              "mid" if self.phase_manager.should_transition_to_phase(current_state, "mid") and current_state.current_hierarchical_phase != "macro" else \
-                              "micro"
+            # Check if we should transition to a different phase - refactored for better readability
+            target_phase = self._get_target_phase_for_transition(current_state)
+            if target_phase:
                 current_state = self.phase_manager.prepare_phase_transition(current_state, target_phase)
                 if debug:
                     logging.info(f"Phase transition: {target_phase} at iteration {iteration_count}")
 
-            # Run a step of the workflow
-            current_state = await self.compiled_graph.ainvoke(current_state)
+            try:
+                # Run the LangGraph once to execute the next node in the sequence
+                current_state = await self.compiled_graph.ainvoke(current_state)
+            except Exception as e:
+                logging.error(f"Error executing workflow: {str(e)}")
+                # Increment error count in state and return current state
+                current_state.error_count += 1
+                current_state.last_error = f"Workflow execution error: {str(e)}"
+                break
 
             iteration_count += 1
 
+            # Check after execution for any cycles that may have appeared
+            if iteration_count % config.node_execution_sequence_limit == 0:  # Use config value instead of hardcoded 5
+                cycle_detected = current_state.detect_cycle(config.loop_detection_threshold)
+                if cycle_detected and debug:
+                    logging.info(f"Potential cycle detected after {iteration_count} iterations: {cycle_detected}")
+
         return current_state
+
+    def _get_target_phase_for_transition(self, state: GraphState) -> str:
+        """Helper method to determine the target phase for transition."""
+        phase_transitions = [
+            ("macro", lambda: True),
+            ("mid", lambda: state.current_hierarchical_phase != "macro"),
+            ("micro", lambda: state.current_hierarchical_phase in ["mid", "macro"])
+        ]
+
+        for phase, condition in phase_transitions:
+            if condition() and self.phase_manager.should_transition_to_phase(state, phase):
+                return phase
+        return None

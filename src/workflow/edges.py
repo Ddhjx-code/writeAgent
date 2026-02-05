@@ -2,9 +2,11 @@ from typing import Dict, Any, Literal
 from langgraph.graph import END
 from .state import GraphState
 from .phase_manager import HierarchicalPhaseManager
+from .config import WorkflowConfig
 
-# Initialize the hierarchical phase manager
+# Initialize the hierarchical phase manager and config
 phase_manager = HierarchicalPhaseManager()
+workflow_config = WorkflowConfig()
 
 
 def route_after_planner(state: GraphState) -> str:
@@ -12,11 +14,39 @@ def route_after_planner(state: GraphState) -> str:
     # Update phase progress
     updated_state = phase_manager.update_phase_progress(state)
 
+    # Check for potential cycles before making routing decision
+    cycle_detected = state.detect_cycle()
+    if cycle_detected:
+        if state.debug_mode:
+            print(f"Cycle detected in planner routing: {cycle_detected}")
+        # If cycle detected, break it by going to a different agent
+        state.mark_forced_transition()
+        return "pacing_advisor"
+
     # Determine next node based on the current hierarchical phase
     if updated_state.current_hierarchical_phase == "macro":
-        # In macro phase, planner typically sets up basic structure
-        # Move to world builder to establish global settings
-        return "world_builder"
+        # In macro phase, check if basic structure is set up
+        # If we've just run the planner, check if it has created outline or other essentials
+        # Avoid immediate cycling to world_builder if we're in a loop
+        has_outline = bool(state.outline and len(state.outline) > 0)
+        has_world_details = bool(state.world_details and len(state.world_details) >= workflow_config.world_builder_threshold)
+        has_characters = bool(state.characters and len(state.characters) >= workflow_config.character_development_threshold)
+
+        # Check how many times planner has executed in this phase to prevent loops
+        planner_executions = state.agent_iteration_counts.get("planner", 0)
+
+        if has_outline and has_world_details and has_characters:
+            # If basic elements exist, move to pacing advisor to break potential loop
+            return "pacing_advisor"
+        elif has_outline and not has_world_details:
+            # If outline exists but world details don't, go to world builder
+            return "world_builder"
+        elif planner_executions > workflow_config.max_iterations_per_node:
+            # If planner has run too many times, go to pacing advisor to break cycle
+            return "pacing_advisor"
+        else:
+            # Otherwise, continue planning or go to world building
+            return "world_builder"
     elif updated_state.current_hierarchical_phase == "mid":
         # In mid phase, planner works on chapter-specific details
         # Move to next mid-level organization step
@@ -124,13 +154,33 @@ def route_after_world_builder(state: GraphState) -> str:
     # Update phase progress
     updated_state = phase_manager.update_phase_progress(state)
 
+    # Check for potential cycles before making routing decision
+    cycle_detected = state.detect_cycle()
+    if cycle_detected:
+        if state.debug_mode:
+            print(f"Cycle detected in world_builder routing: {cycle_detected}")
+        # If cycle detected, break it by going to a different agent
+        state.mark_forced_transition()
+        return "pacing_advisor"
+
     # World builder primarily operates in macro phase
     if updated_state.current_hierarchical_phase == "macro":
         # After world building at macro level, check completion
         completion = phase_manager.evaluate_phase_completion(updated_state)
+
+        # Check how many times world_builder has executed in this phase
+        wb_executions = state.agent_iteration_counts.get("world_builder", 0)
+
         if completion["phase_complete"]:
             return "pacing_advisor"  # Move to pacing advisor
+        elif wb_executions > workflow_config.max_iterations_per_node:
+            # If world builder has run too many times, break the loop with pacing advisor
+            return "pacing_advisor"
+        elif state.macro_progress >= workflow_config.macro_phase_completion_threshold:
+            # If macro progress is sufficient, go to pacing advisor
+            return "pacing_advisor"
         else:
+            # Otherwise, continue to planner for more structure
             return "planner"  # Continue planning foundational structure
     elif updated_state.current_hierarchical_phase == "mid":
         # In mid phase, world building is for chapter-specific details
@@ -223,6 +273,17 @@ def route_workflow_logic(state: GraphState) -> str:
     # Update phase progress
     updated_state = phase_manager.update_phase_progress(state)
 
+    # Check for potential execution cycles before routing
+    cycle_detected = state.detect_cycle(workflow_config.loop_detection_threshold)
+    if cycle_detected and state.debug_mode:
+        print(f"Cycle detected in main routing logic: {cycle_detected}")
+
+    # Force transition if cycles are detected
+    if cycle_detected:
+        state.mark_forced_transition()
+        # Return to pacing advisor to break the potential cycle and reassess
+        return "pacing_advisor"
+
     # Check if we should transition to a different hierarchical phase
     if phase_manager.should_transition_to_phase(updated_state, "macro"):
         updated_state = phase_manager.prepare_phase_transition(updated_state, "macro")
@@ -234,7 +295,7 @@ def route_workflow_logic(state: GraphState) -> str:
         updated_state = phase_manager.prepare_phase_transition(updated_state, "micro")
         return "writer"
 
-    chapter_in_progress = bool(state.current_chapter and len(state.current_chapter) > 50)  # Simple metric
+    chapter_in_progress = bool(state.current_chapter and len(state.current_chapter) > workflow_config.chapter_size_threshold)  # Configurable threshold
     chapter_completed = len(state.completed_chapters) > len([c for c in state.chapters if c.get('completed_at_iteration', 0) < state.iteration_count])
 
     if state.next_agent:
@@ -268,15 +329,30 @@ def route_workflow_logic(state: GraphState) -> str:
             elif state.next_agent == "human_review":
                 return "human_review"
 
+    # 如果迭代次数过多，为了避免无限循环，强制结束
+    if state.iteration_count >= state.max_iterations:
+        return END
+
     # Default routing based on hierarchy and story progress
     if state.current_hierarchical_phase == "macro":
         # In macro phase, focus on high-level planning
-        if not state.outline or len(state.outline) == 0:
-            return "planner"
-        elif not state.world_details or len(state.world_details) < 3:  # Arbitrary number
-            return "world_builder"
+        # 添加一些限制来避免无限循环
+        outline_complete = bool(state.outline and len(state.outline) >= workflow_config.story_outline_chapters_threshold)
+        world_details_complete = bool(state.world_details and len(state.world_details) >= workflow_config.world_builder_threshold)
+        characters_complete = bool(state.characters and len(state.characters) >= workflow_config.character_development_threshold)
+
+        # 如果基础架构已大致完成，可以尝试其他环节
+        if outline_complete and world_details_complete and characters_complete:
+            return "pacing_advisor"  # 前往节奏评估
+        elif outline_complete and not world_details_complete:
+            return "world_builder"  # 如果大纲有了但世界设定不完整，继续构建世界
+        elif not outline_complete:
+            return "planner"  # 没有大纲，先规划
+        elif state.agent_iteration_counts.get("planner", 0) > workflow_config.max_iterations_per_node:
+            # Planner has run too many times, try other route to break cycle
+            return "pacing_advisor"
         else:
-            return "pacing_advisor"  # Check/adjust pacing strategy
+            return "planner"  # 继续规划
 
     elif state.current_hierarchical_phase == "mid":
         # In mid phase, work on chapter organization

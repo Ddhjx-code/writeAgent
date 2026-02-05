@@ -2,12 +2,14 @@
 
 from typing import Literal, Dict, Any, Optional, List
 from .state import GraphState
+from .config import WorkflowConfig
 
 
 class HierarchicalPhaseManager:
     """Manages transitions between macro, mid, and micro hierarchical phases in the workflow."""
 
     def __init__(self):
+        self.config = WorkflowConfig()
         # Define the conditions that might trigger transitions between phases
         self.transition_rules = {
             "macro_to_mid": {
@@ -23,7 +25,7 @@ class HierarchicalPhaseManager:
                 "characters_developed": True,  # Sufficient character development for current chapter
             },
             "micro_to_mid": {
-                "chapter_completion_threshold": 0.9,  # When chapter is 90% complete
+                "chapter_completion_threshold": self.config.micro_completion_factor,  # Configurable
                 "needs_integration": True,  # When need to integrate with other chapters or re-plan
             }
         }
@@ -33,38 +35,42 @@ class HierarchicalPhaseManager:
         updated_state = state.copy()
 
         if state.current_hierarchical_phase == "macro":
-            # Calculate macro phase progress based on story structure setup
+            # Calculate macro phase progress based on story structure setup using config values
             progress = 0.0
+
+            # Calculate progress based on configured values
             if state.outline and len(state.outline) > 0:
-                progress += 0.3  # Outline complete
+                progress += self.config.macro_outline_progress_multiplier  # Outline complete
 
             if state.world_details and len(state.world_details) > 0:
-                progress += 0.2  # World details
+                progress += self.config.macro_world_progress_multiplier  # World details
 
             if state.characters and len(state.characters) > 0:
-                progress += 0.2  # Character creation complete
+                progress += self.config.macro_characters_progress_multiplier  # Character creation complete
 
             # Additional factors that might influence progress
-            if "story_arc" in state.outline:
-                progress += 0.3
+            if state.outline and "story_arc" in state.outline:
+                progress += self.config.macro_arc_progress_multiplier
 
             updated_state.macro_progress = min(1.0, progress)
 
         elif state.current_hierarchical_phase == "mid":
-            # Calculate mid phase progress based on chapter planning
+            # Calculate mid phase progress based on chapter planning using config values
             progress = 0.0
-            if state.outline.get("chapters"):
-                progress = min(1.0, len(state.chapters) / max(state.target_mid_completion, 1))
+            target_completion = max(updated_state.target_mid_completion, 1)
+            if target_completion > 0:
+                progress = min(1.0, len(updated_state.chapters) / target_completion)
 
             updated_state.mid_progress = progress
 
         else:  # micro phase
-            # Calculate micro phase progress based on current chapter completion
+            # Calculate micro phase progress based on current chapter completion using configurable value
             current_content_length = len(state.current_chapter or "")
-            progress = min(1.0, current_content_length / 5000)  # Normalized against 5000 chars per chapter
+            progress = min(1.0, current_content_length / self.config.chapter_normalization_factor)  # Normalized against configurable factor
 
             # Also consider how many chapters are complete
-            chapter_completion = len(state.chapters) / max(state.target_mid_completion, 1) if state.target_mid_completion > 0 else 0.0
+            target_completion = max(updated_state.target_mid_completion, 1) if updated_state.target_mid_completion > 0 else 1.0
+            chapter_completion = len(updated_state.chapters) / target_completion
             progress = max(progress, chapter_completion)
 
             updated_state.micro_progress = progress
@@ -89,10 +95,17 @@ class HierarchicalPhaseManager:
         if target_phase not in allowed_transitions.get(current, []):
             return False
 
+        # Check if progress thresholds have been reached before allowing transition
+        progress_check = {
+            "macro": state.macro_progress >= self.config.macro_phase_completion_threshold,
+            "mid": state.mid_progress >= self.config.mid_phase_completion_threshold,
+            "micro": state.micro_progress >= self.config.micro_phase_completion_threshold
+        }
+
         # Check specific conditions for each transition
         if current == "macro" and target_phase == "mid":
-            # Transition from macro to mid when structure is adequately defined
-            return len(state.outline) > 0 and state.title.strip() != ""
+            # Transition from macro to mid when structure is adequately defined with configurable thresholds
+            return len(state.outline) > self.config.min_story_outline_chapters and state.title.strip() != ""
 
         elif current == "mid" and target_phase == "macro":
             # Transition from mid back to macro when story needs re-planning
@@ -101,13 +114,14 @@ class HierarchicalPhaseManager:
             return needs_replan
 
         elif current == "mid" and target_phase == "micro":
-            # Transition from mid to micro when we have chapter details to create
+            # Transition from mid to micro when we have chapter details to create according to config
             return (len(state.chapters) < state.target_mid_completion and
-                   bool(state.outline.get("chapters")))
+                   bool(state.outline.get("chapters")) and
+                   progress_check["mid"])  # Ensure mid phase has sufficient progress
 
         elif current == "micro" and target_phase == "mid":
-            # Transition from micro to mid when current chapter is complete
-            return (state.micro_progress >= 1.0 or
+            # Transition from micro to mid when current chapter is complete with configurable threshold
+            return (state.micro_progress >= self.config.micro_phase_completion_threshold or
                    len(state.chapters) >= state.target_mid_completion)
 
         return False
@@ -202,13 +216,13 @@ class HierarchicalPhaseManager:
         }
 
         if current_phase == "macro":
-            # Macro phase complete when basic story architecture is established
+            # Macro phase complete when basic story architecture is established using config values
             completion_status["progress"] = state.macro_progress
             is_complete = (
                 bool(state.outline.get("story_arc")) and
-                len(state.outline.get("chapters", [])) >= 3 and  # At least a few chapter plans
+                len(state.outline.get("chapters", [])) >= self.config.macro_completion_chapters_count and  # Configurable
                 bool(state.world_details) and
-                len(state.characters) >= 2  # At least main characters
+                len(state.characters) >= self.config.macro_min_character_count  # Configurable
             )
 
             completion_status["phase_complete"] = is_complete
@@ -219,7 +233,7 @@ class HierarchicalPhaseManager:
             )
 
         elif current_phase == "mid":
-            # Mid phase complete when chapter plans are adequate
+            # Mid phase complete when chapter plans are adequate using config values
             completion_status["progress"] = state.mid_progress
             is_complete = (
                 len(state.chapters) >= state.target_mid_completion or
@@ -237,10 +251,10 @@ class HierarchicalPhaseManager:
             )
 
         else:  # micro
-            # Micro phase complete when chapter is sufficiently developed
+            # Micro phase complete when chapter is sufficiently developed using config value
             completion_status["progress"] = state.micro_progress
             is_complete = (
-                state.micro_progress >= 1.0 or
+                state.micro_progress >= self.config.micro_phase_completion_threshold or  # Configurable
                 len(state.chapters) >= state.target_mid_completion
             )
 

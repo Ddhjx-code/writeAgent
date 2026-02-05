@@ -128,11 +128,15 @@ class WritingEngine:
 
     async def run_story_generation(self,
                                  initial_state: GraphState,
-                                 max_iterations: int = 10,
+                                 max_iterations: int = None,
                                  target_chapters: int = 5) -> GraphState:
         """Run the story generation workflow with specified constraints."""
         if self.system_state != "ready":
             raise RuntimeError("Engine not ready. Call initialize() first.")
+
+        # Use configuration value if max_iterations is None
+        if max_iterations is None:
+            max_iterations = self.config.workflow_config.default_max_iterations
 
         if not initial_state.should_continue() or max_iterations <= 0:
             return initial_state
@@ -145,18 +149,26 @@ class WritingEngine:
 
         try:
             for iteration in range(max_iterations):
+                # 更新迭代计数前检查结束条件
+                current_state = current_state.copy(update={"iteration_count": iteration})
+
                 if not current_state.should_continue() or len(current_state.completed_chapters) >= target_chapters:
                     logging.info(f"Story generation completed after {iteration+1} iterations")
                     break
 
+                # Enhanced cycle detection: Check the state's execution sequence for potential infinite loops
+                cycle_detected = current_state.detect_cycle(self.config.workflow_config.loop_detection_threshold)
+                if cycle_detected:
+                    logging.warning(f"Possibly infinite loop detected: {cycle_detected}")
+                    # Force an end to the generation to break cycle
+                    current_state.story_status = "complete"
+                    break
+
                 logging.info(f"Iteration {iteration+1}: Current phase - {current_state.current_phase}")
 
-                # Update state with iteration information
-                current_state.iteration_count = iteration
-                current_state = current_state.copy(update={"iteration_count": iteration})
-
-                # Run the workflow starting from the current state
-                current_state = await self.workflow.run_workflow(current_state, debug=False)
+                # Use the new run_with_phase_management when running the workflow
+                # This gives us more control over the execution and phase transitions
+                current_state = await self.workflow.run_with_phase_management(current_state, debug=False)
 
                 # Check if the story is complete
                 if len(current_state.completed_chapters) >= target_chapters:
@@ -309,3 +321,62 @@ class WritingEngine:
             "knowledge_store_status": knowledge_status,
             "timestamp": datetime.now().isoformat()
         }
+
+    async def get_agent_status(self) -> List[Dict[str, Any]]:
+        """Get the status of all AI agents."""
+        agent_statuses = []
+
+        # In the current architecture, agents are stored in the NodeManager of the workflow
+        # Check the actual status from the workflow
+        agents_info = [
+            ("planner", "Planner Agent", "设计故事主线、章节梗概、转折点"),
+            ("writer", "Writer Agent", "主笔生成章节正文内容"),
+            ("archivist", "Archivist Agent", "管理人物卡、世界观设定、版本控制"),
+            ("editor", "Editor Agent", "优化可读性、情感张力、避免冗余"),
+            ("consistency_checker", "Consistency Checker Agent", "校验时间线、人物行为、因果链"),
+            ("dialogue_specialist", "Dialogue Specialist Agent", "优化角色对话风格、口吻、潜台词"),
+            ("world_builder", "World Builder Agent", "丰富场景细节、感官描写"),
+            ("pacing_advisor", "Pacing Advisor Agent", "控制快慢节奏、悬念密度、段落分布"),
+            ("humanizer", "Humanizer Agent", "去除AI生成文本痕迹，使文字更自然"),
+            ("human_review", "Human Review Node", "处理人类反馈和评审")
+        ]
+
+        # Check if these agents are initialized in the workflow
+        for agent_id, display_name, role in agents_info:
+            # Try to check if the agents are available in workflow
+            if self.workflow and hasattr(self.workflow.node_manager, f"{agent_id}_agent"):
+                agent_is_initialized = True
+            elif agent_id == "planner" and self.planner_agent:
+                agent_is_initialized = True
+            elif agent_id == "writer" and self.writer_agent:
+                agent_is_initialized = True
+            elif agent_id == "archivist" and self.archivist_agent:
+                agent_is_initialized = True
+            elif agent_id == "editor" and self.editor_agent:
+                agent_is_initialized = True
+            elif agent_id == "consistency_checker" and self.consistency_checker_agent:
+                agent_is_initialized = True
+            elif agent_id == "dialogue_specialist" and self.dialogue_specialist_agent:
+                agent_is_initialized = True
+            elif agent_id == "world_builder" and self.world_builder_agent:
+                agent_is_initialized = True
+            elif agent_id == "pacing_advisor" and self.pacing_advisor_agent:
+                agent_is_initialized = True
+            elif agent_id == "humanizer" and self.humanizer_agent:
+                agent_is_initialized = True
+            else:
+                agent_is_initialized = False
+
+            # Check if the agent is currently active in a workflow run
+            is_active = self.is_running and agent_is_initialized  # Only active if the engine is running
+
+            agent_statuses.append({
+                "id": agent_id,
+                "name": display_name,
+                "role": role,
+                "status": "initialized" if agent_is_initialized else "uninitialized",
+                "active": is_active,  # Only active if the engine is running
+                "tasks": []  # Incomplete implementation would track current tasks
+            })
+
+        return agent_statuses

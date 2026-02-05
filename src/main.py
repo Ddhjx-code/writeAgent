@@ -8,6 +8,12 @@ from .core.engine import WritingEngine
 from .workflow.state import GraphState
 import uvicorn
 
+# 配置日志
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+
 
 def create_sample_story_data() -> Dict[str, Any]:
     """Create sample story data to initialize the system."""

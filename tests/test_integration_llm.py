@@ -20,13 +20,12 @@ class TestLLMIntegration(unittest.TestCase):
         """Set up test fixtures using environment variables."""
         self.config = Config()
 
-        # Get API keys from environment (as specified in requirements)
+        # Get API key from environment (as we now only support OpenAI)
         self.openai_api_key = os.getenv('OPENAI_API_KEY')
-        self.anthropic_api_key = os.getenv('ANTHROPIC_API_KEY')
 
-        # Only proceed with tests if API keys are present
-        if not self.openai_api_key and not self.anthropic_api_key:
-            self.skipTest("No API keys found in environment for integration tests")
+        # Only proceed with tests if API key is present
+        if not self.openai_api_key:
+            self.skipTest("OpenAI API key not found in environment for integration tests")
 
     @unittest.skipIf(not os.getenv('OPENAI_API_KEY'), "OpenAI API key not provided")
     def test_openai_system_user_messages(self):

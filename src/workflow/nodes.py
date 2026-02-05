@@ -16,6 +16,7 @@ from ..knowledge.store import KnowledgeStore
 from ..config import Config
 from .state import GraphState
 from .phase_manager import HierarchicalPhaseManager
+from .config import WorkflowConfig
 import logging
 
 logger = logging.getLogger(__name__)
@@ -28,6 +29,7 @@ class NodeManager:
         self.config = config
         self.knowledge_store = knowledge_store
         self.phase_manager = HierarchicalPhaseManager()
+        self.workflow_config = WorkflowConfig()  # Add workflow configuration
 
         # Initialize agents
         self.writer_agent = WriterAgent(config)
@@ -63,7 +65,7 @@ class NodeManager:
             try:
                 new_outline = json.loads(response.content)
             except json.JSONDecodeError:
-                logger.warning(f"Could not decode planner response as JSON: {response.content[:200]}...")
+                logger.warning(f"Could not decode planner response as JSON: {response.content[:self.workflow_config.agent_response_snippet_limit]}...")
                 # Try to extract JSON from markdown if present
                 json_match = re.search(r'```(?:json)?\s*({.*?})\s*```', response.content, re.DOTALL)
                 if json_match:
@@ -72,10 +74,10 @@ class NodeManager:
                     except json.JSONDecodeError:
                         logger.warning("Could not decode markdown JSON either.")
                         # If no JSON found, create a simple dict from content
-                        new_outline = {"basic_outline": response.content[:500]}
+                        new_outline = {"basic_outline": response.content[:self.workflow_config.agent_response_snippet_limit]}
                 else:
                     # If no JSON found, create a simple dict from content
-                    new_outline = {"basic_outline": response.content[:500]}
+                    new_outline = {"basic_outline": response.content[:self.workflow_config.agent_response_snippet_limit]}
 
             new_state = updated_state.copy()
             new_state.outline.update(new_outline)

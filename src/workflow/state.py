@@ -60,12 +60,75 @@ class GraphState(BaseModel):
     current_agent_output: Optional[str] = None
     agent_execution_log: List[Dict[str, Any]] = []
 
+    # Cycle detection and execution tracking
+    cycle_detection_metrics: Dict[str, int] = {}  # Track agent execution patterns
+    execution_sequence: List[str] = []  # Track sequence of agent executions
+    agent_iteration_counts: Dict[str, int] = {}  # Track individual agent iterations
+    forced_transitions_count: int = 0  # Count number of forced transitions
+    debug_mode: bool = False  # Enable debug features
+
     @validator('macro_progress', 'mid_progress', 'micro_progress')
     def validate_progress(cls, v):
         """Validate that progress values are between 0.0 and 1.0"""
         if not 0.0 <= v <= 1.0:
             raise ValueError('Progress must be between 0.0 and 1.0')
         return v
+
+    def log_current_step(self, step_data: Dict[str, Any]):
+        """Log the current execution step for debugging and cycle detection."""
+        step_log = {
+            "iteration": self.iteration_count,
+            "agent": self.next_agent,
+            "phase": self.current_hierarchical_phase,
+            "timestamp": self.iteration_count,  # Using iteration as timestamp
+            **step_data
+        }
+        self.agent_execution_log.append(step_log)
+
+        # Update execution sequence for cycle detection
+        self.execution_sequence.append(self.next_agent)
+
+        # Update agent iteration counts
+        if self.next_agent not in self.agent_iteration_counts:
+            self.agent_iteration_counts[self.next_agent] = 0
+        self.agent_iteration_counts[self.next_agent] += 1
+
+        # Update cycle detection metrics
+        if self.next_agent not in self.cycle_detection_metrics:
+            self.cycle_detection_metrics[self.next_agent] = 0
+        self.cycle_detection_metrics[self.next_agent] += 1
+
+    def detect_cycle(self, max_repeats: Optional[int] = None) -> Optional[str]:
+        """Detect potential cycles in the execution sequence."""
+        from .config import WorkflowConfig
+        config = WorkflowConfig()
+        threshold = max_repeats or config.max_related_nodes_sequence
+
+        # Check if the last N elements of the execution sequence are the same
+        if len(self.execution_sequence) < threshold * 2:
+            return None
+
+        # Check for repeated patterns within the last sequence
+        recent_executions = self.execution_sequence[-threshold:]
+        if len(recent_executions) == threshold and len(set(recent_executions)) == 1:
+            return f"Potential cycle detected: {recent_executions[0]} executed {threshold} times in succession"
+
+        # Check for shorter repetitive patterns
+        if len(self.execution_sequence) >= 6:
+            last_6 = self.execution_sequence[-6:]
+            if last_6[:3] == last_6[3:]:  # First three equal last three
+                return f"Potential 3-agent cycle detected: {last_6[:3]}"
+
+        # Check for high iteration counts in individual agents
+        for agent, count in self.agent_iteration_counts.items():
+            if count > threshold:
+                return f"Agent {agent} has run {count} times - potential infinite loop"
+
+        return None
+
+    def mark_forced_transition(self):
+        """Mark that a forced transition has occurred to help track cycle-breaking events."""
+        self.forced_transitions_count += 1
 
     def get_agent_context(self) -> Dict[str, Any]:
         """Return the current context for agents to work with."""
