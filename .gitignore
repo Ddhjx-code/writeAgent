@@ -1,0 +1,14 @@
+# 排除所有文件，只保留配置和说明
+*
+
+# 保留以下文件和目录
+!README.md
+!.claude/
+!.gitignore
+
+# .claude目录下也只保留特定文件
+.claude/*
+!.claude/CLAUDE.md
+!.claude/settings.json
+!.claude/agents/
+!.claude/commands/
