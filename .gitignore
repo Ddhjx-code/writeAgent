@@ -11,4 +11,6 @@
 !.claude/CLAUDE.md
 !.claude/settings.json
 !.claude/agents/
+!.claude/agents/**
 !.claude/commands/
+!.claude/commands/**
