@@ -18,13 +18,13 @@
 
 执行任务前，按阶段读取所需技能文件，不在任务开始时全部读取：
 
-- **主技能**：skills/writer-skill/SKILL.md（必读）
-- **章节结构**：skills/writer-skill/chapter-guide.md（骨架阶段必读）
-- **对话写作**：skills/writer-skill/dialogue-writing.md（扩展阶段按需读取）
-- **描写技巧**：skills/writer-skill/description-craft.md（扩展阶段按需读取）
-- **内容扩充**：skills/writer-skill/content-expansion.md（扩展阶段参考）
-- **悬念技巧**：skills/shared/hook-techniques.md（扩展阶段按需读取）
-- **去AI味**：skills/shared/deai-rules.md（扩展阶段必读）
+- **主技能**：.claude/skills/writer-skill/SKILL.md（必读）
+- **章节结构**：.claude/skills/writer-skill/chapter-guide.md（骨架阶段必读）
+- **对话写作**：.claude/skills/writer-skill/dialogue-writing.md（扩展阶段按需读取）
+- **描写技巧**：.claude/skills/writer-skill/description-craft.md（扩展阶段按需读取）
+- **内容扩充**：.claude/skills/writer-skill/content-expansion.md（扩展阶段参考）
+- **悬念技巧**：.claude/skills/shared/hook-techniques.md（扩展阶段按需读取）
+- **去AI味**：.claude/skills/shared/deai-rules.md（扩展阶段必读）
 
 ## 任务类型
 

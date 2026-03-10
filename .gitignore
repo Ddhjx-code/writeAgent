@@ -14,3 +14,5 @@
 !.claude/agents/**
 !.claude/commands/
 !.claude/commands/**
+!.claude/skills/
+!.claude/skills/**
