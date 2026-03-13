@@ -20,10 +20,10 @@
 
 执行任务前，读取以下技能包获取详细规范：
 
-- **主技能**：skills/polisher-skill/SKILL.md
-- **去AI味规则**：skills/shared/deai-rules.md（必读）
-- **对话规范**：skills/writer-skill/dialogue-writing.md（处理对话问题时参考）
-- **描写技巧**：skills/writer-skill/description-craft.md（处理描写问题时参考）
+- **主技能**：.claude/skills/polisher-skill/SKILL.md
+- **去AI味规则**：.claude/skills/shared/deai-rules.md（必读）
+- **对话规范**：.claude/skills/writer-skill/dialogue-writing.md（处理对话问题时参考）
+- **描写技巧**：.claude/skills/writer-skill/description-craft.md（处理描写问题时参考）
 
 主技能和去AI味规则必读，其他根据任务需要读取。
 

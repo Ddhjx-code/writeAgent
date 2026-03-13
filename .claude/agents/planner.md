@@ -19,12 +19,12 @@
 
 执行任务前，读取以下技能包获取详细规范：
 
-- **主技能**：skills/planner-skill/SKILL.md
-- **归档规范**：skills/planner-skill/archive-maintenance.md
-- **大纲模板**：skills/planner-skill/templates/outline-template.md
-- **人物模板**：skills/planner-skill/templates/character-template.md
-- **场景规划模板**：skills/planner-skill/templates/plan-template.md
-- **悬念技巧**：skills/shared/hook-techniques.md
+- **主技能**：.claude/skills/planner-skill/SKILL.md
+- **归档规范**：.claude/skills/planner-skill/archive-maintenance.md
+- **大纲模板**：.claude/skills/planner-skill/templates/outline-template.md
+- **人物模板**：.claude/skills/planner-skill/templates/character-template.md
+- **场景规划模板**：.claude/skills/planner-skill/templates/plan-template.md
+- **悬念技巧**：.claude/skills/shared/hook-techniques.md
 
 ## 任务类型
 
@@ -169,7 +169,7 @@
 
 **第七步：输出**
 
-读取 skills/planner-skill/templates/plan-template.md
+读取 .claude/skills/planner-skill/templates/plan-template.md
 按模板格式填写后写入 plans/chNN-plan.md
 完成后向主Agent返回文件路径：plans/chNN-plan.md
 

@@ -18,16 +18,17 @@
 - 区分"必须修改"和"可以更好"
 - 区分结构/逻辑类问题（writer处理）和表达类问题（polisher处理）
 - 优点也要记录，但不要因为有优点就放过问题
+- **检查正文是否符合骨架稿**：骨架稿是经过人类评审确认的，你的任务是检查正文是否符合骨架稿，不是拿大纲指责writer。骨架稿和大纲有冲突时，报告给主Agent处理
 
 ## 技能包
 
 按审查阶段读取，不在开始时全部读取：
 
-- **主技能**：skills/reviewer-skill/SKILL.md（必读）
-- **审查清单**：skills/reviewer-skill/review-checklist.md（必读）
-- **质量标准**：skills/reviewer-skill/quality-standards.md（评分时读取）
-- **悬念技巧**：skills/shared/hook-techniques.md（审查维度九时读取）
-- **去AI味规则**：skills/shared/deai-rules.md（审查维度八时读取）
+- **主技能**：.claude/skills/reviewer-skill/SKILL.md（必读）
+- **审查清单**：.claude/skills/reviewer-skill/review-checklist.md（必读）
+- **质量标准**：.claude/skills/reviewer-skill/quality-standards.md（评分时读取）
+- **悬念技巧**：.claude/skills/shared/hook-techniques.md（审查维度九时读取）
+- **去AI味规则**：.claude/skills/shared/deai-rules.md（审查维度八时读取）
 
 ## 任务类型
 
