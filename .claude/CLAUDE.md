@@ -68,13 +68,14 @@ project/
 │ ├── characters/
 │ ├── worldbuilding/
 │ ├── plot/
-│ │ ├── outline.md
+│ │ ├── outline.md         # 大纲（含TODO、章节摘要、节奏地图）
 │ │ ├── suspense-tracker.md
-│ │ └── foreshadow-tracker.md
+│ │ ├── foreshadow-tracker.md
+│ │ └── decisions.md       # 决策日志
 │ └── changelog.md
-├── plans/ # 场景规划
+├── plans/ # 场景规划（含 beat 级粒度、情感弧、钩子链）
 ├── chapters/ # 定稿正文
-└── reviews/ # 审查报告
+└── reviews/ # 审查报告（含就绪判定、骨架忠实度）
 ```
 
 ## 文件命名
@@ -112,6 +113,25 @@ project/
 |------|--------|
 | shared/hook-techniques.md | planner, writer, reviewer |
 | shared/deai-rules.md | writer, polisher, reviewer |
+| planner-skill/references/beat-vocabulary.md | planner, writer, reviewer |
+| writer-skill/references/genre-standards.md | writer, reviewer |
+
+### 体裁传播规则
+
+体裁（从 outline.md 的"题材"字段读取）影响所有 Agent 的工作方式：
+- planner：节奏模式选择和钩子类型偏好
+- writer：扩展阶段的描写优先级和对话风格
+- reviewer：审查维度的权重调整
+- polisher：体裁相关的措辞标准
+
+所有 Agent 在任务开始时应读取 outline.md 确认当前项目的体裁。
+
+### 决策日志访问规则
+
+- bible/plot/decisions.md 仅供 planner 写入
+- writer 读取以理解场景规划中的决策背景（如"为什么这章是轻节奏"）
+- reviewer 读取以判断偏离规划是否有决策支持
+- polisher 读取以了解影响情感目标的决策
 
 ### 关键原则
 
