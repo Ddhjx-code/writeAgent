@@ -161,8 +161,14 @@ project/
 
 ### reviewer.md
 - 身份：严格的编辑，只读不改
+- 介入时机：
+  - 大纲审查（立项阶段）：任务三：大纲审查
+  - 规划审查（Step 1.5）：检查场景规划是否覆盖大纲核心事件、因果链是否补足
+  - 正文审查（Step 3）：十维度审查，写入 reviews/
+  - 复审（Step 3.5）：writer 修改后逐项核查
+  - 全书通读（流程五）：全书完成后
 - 十维度审查：叙事逻辑、人物一致性、连贯性、场景执行、节奏张力、对话质量、描写质量、去AI味、钩子悬念、字数密度
-- 每条问题标注严重程度和处理方（writer/polisher）
+- 每条问题标注严重程度和处理方（writer/polisher）和问题来源（骨架层/扩展层/表达层）
 - 按 review-report-template.md 格式输出
 - 技能包：reviewer-skill/SKILL.md + review-checklist.md + quality-standards.md
 
@@ -208,6 +214,12 @@ project/
 → 写入 plans/chNN-plan.md
 → 返回文件路径确认
 
+**Step 1.5 规划审查（reviewer）**
+读取：场景规划 plans/chNN-plan.md、本章大纲、悬念追踪
+检查：场景结构是否覆盖大纲核心事件、因果链是否补足了大纲缺口、钩子设计是否合理、字数分配是否匹配节奏权重
+→ 快速审查意见返回主Agent（不写入文件，仅判断规划是否可进入写作）
+→ 如有严重结构缺口，退回 planner 重做规划
+
 **Step 2 写作（writer）**
 主Agent派遣时传入：plans/chNN-plan.md 的完整内容
 读取：人物档案、前章结尾
@@ -215,9 +227,14 @@ project/
 → 写入 chapters/chNN.md
 
 **Step 3 审查（reviewer）**
-读取：章节正文、场景规划、人物档案、悬念追踪
-参考：review-checklist.md, quality-standards.md
+读取：章节正文、场景规划、骨架稿、人物档案、悬念追踪
+参考：review-checklist.md, quality-standards.md, shared/deai-rules.md, shared/hook-techniques.md
 → 写入 reviews/chNN-review.md（按 review-report-template.md 格式）
+
+**Step 3.5 复审（reviewer，如 writer 修改后）**
+读取：修改后正文、上一份审查报告、问题清单
+检查：原问题是否已解决、修改是否引入新问题
+→ 覆写 reviews/chNN-review.md，标注 [复审版本 vN]
 
 **Step 4 判断（主Agent）**
 读取审查报告，判断：
