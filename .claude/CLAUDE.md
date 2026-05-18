@@ -104,14 +104,23 @@ project/
 - 必要时：指示子Agent读取技能包中的详细参考文件
 - 调用后：接收返回结果，做判断，决定下一步
 
-### 四个子Agent
+### cutter.md（新增）
+- 身份：剪刀，只删不改
+- 介入时机：writer完成章节后、reviewer审查前
+- 判断标准：每段文字是否传递新信息？删掉后读者是否丢失信息？
+- 必删清单：解释性旁白、重述、无功能比喻、无功能排比、总结性段落、情绪标签堆叠
+- 保护清单：骨架稿中所有承重beat对应的内容
+- 技能包：`.claude/skills/cutter-skill/SKILL.md`
+
+### 五个子Agent
 
 | 子Agent | 用途 | 技能包 | 可写目录 |
 |---------|------|--------|----------|
 | planner | 规划结构，维护bible | planner-skill/ | bible/, plans/ |
 | writer | 撰写章节正文 | writer-skill/ | chapters/ |
+| cutter | 削减废话，确保信息密度 | cutter-skill/ | chapters/ |
 | reviewer | 多维度审查，输出报告 | reviewer-skill/ | reviews/ |
-| polisher | 语言润色，去AI味 | polisher-skill/ | chapters/ |
+| polisher | 削减+粗糙化，去AI味 | polisher-skill/ | chapters/ |
 
 ### 共享技能
 
@@ -143,7 +152,8 @@ project/
 
 - planner是bible的**唯一写入者**，其他角色不修改bible
 - reviewer是**只读**的，不修改任何文件，只写入reviews/
-- writer和polisher只**写入**chapters/目录
+- writer、cutter和polisher只**写入**chapters/目录
+- cutter**只删不改**——不替换、不润色、不补充，只删除
 - 主Agent自己**不写长文**，只做决策和协调
 
 
@@ -162,6 +172,10 @@ project/
 - 身份：通俗小说作家
 - 每章3000-5000字，最低不低于2500字
 - 三大铁律：展示非讲述、冲突驱动、悬念收尾
+- 新增约束：
+  - 叙述者权限（不解释、不命名情绪、不总结、不预告；比喻限2处/章）
+  - 信息密度检查（每场景完成后逐段标注新信息，无新信息的段落删除）
+  - 模式查重（骨架阶段检查与前章的反应模式/情绪走向/钩子手法是否重复）
 - 按 writer-skill/templates/chapter-template.md 格式输出
 - 技能包：`.claude/skills/writer-skill/SKILL.md` + `dialogue-writing.md` + `description-craft.md` + `content-expansion.md`
 
@@ -179,10 +193,13 @@ project/
 - 技能包：reviewer-skill/SKILL.md + review-checklist.md + quality-standards.md
 
 ### polisher.md
-- 身份：文字润色师
-- 核心任务：去AI味，让文字自然有人味
-- 五个润色维度：去AI味 → 对话修正 → 描写精炼 → 节奏微调 → 措辞优化
-- 不改动剧情和结构，只优化文字表达
+- 身份：文字外科医生（削减+粗糙化）
+- 核心任务：删除AI味表达，制造真人写作的粗糙质感
+- 两阶段工作法：
+  - 阶段一·削减：删除无功能比喻、排比冗余、解释性语句、重复信息、情绪堆叠
+  - 阶段二·粗糙化：打断对称句式、制造长短交错、允许不完整、对话粗糙化
+- 第一优先级是删除，不是替换。能删就删，删不了才改
+- 不追求"优美"，追求"真实"。宁可粗糙也不要平滑
 - 发现结构问题记录在报告中建议交回writer
 - 完成后覆写章节文件
 - 技能包：`.claude/skills/polisher-skill/SKILL.md` + `.claude/skills/shared/deai-rules.md`
@@ -230,7 +247,23 @@ project/
 主Agent派遣时传入：plans/chNN-plan.md 的完整内容
 读取：人物档案、前章结尾
 参考：`.claude/skills/writer-skill/dialogue-writing.md`, `.claude/skills/writer-skill/description-craft.md`, `.claude/skills/shared/deai-rules.md`
+写作时强制执行：
+- 叙述者权限约束（不解释、不命名情绪、不总结意义）
+- 信息密度检查（每场景完成后逐段标注新信息）
+- 模式查重（骨架阶段检查与前章的反应模式是否重复）
 → 写入 chapters/chNN.md
+
+**Step 2.5 削减（cutter）**
+读取：章节正文 chapters/chNN.md、骨架稿 plans/chNN-skeleton.md
+执行：
+- 逐段信息密度判断（新信息检查 + 不可推断检查 + 骨架保护检查）
+- 必删清单扫描（解释性旁白、重述、无功能比喻/排比、总结性段落、情绪堆叠）
+- 连贯性修复（删除后通读确认无断裂）
+→ 覆写 chapters/chNN.md
+→ 返回削减报告（含削减前后字数对比）
+
+如果削减后字数低于2500字 → 报告中标注"信息密度结构性不足"
+主Agent判断：如问题严重则退回 writer 补充实质内容后重新削减
 
 **Step 3 审查（reviewer）**
 读取：章节正文、场景规划、骨架稿、人物档案、悬念追踪
@@ -267,11 +300,14 @@ project/
 - writer重写 ≤ 2次
 - 超过上限 → 暂停，向人类展示具体问题，等待决策
 
-**Step 5 润色（polisher）**
+**Step 5 精修（polisher）**
 读取：章节正文、审查报告中polisher任务
 参考：`.claude/skills/shared/deai-rules.md`
+两阶段处理：
+- 阶段一·削减：删除残留的无功能比喻、排比冗余、解释性语句、重复信息
+- 阶段二·粗糙化：打断对称句式、制造长短交错、允许不完整、对话粗糙化
 → 覆写 chapters/chNN.md
-→ 返回润色报告
+→ 返回精修报告
 
 **Step 6 归档（planner）**
 读取：定稿章节、审查报告的连贯性备注
